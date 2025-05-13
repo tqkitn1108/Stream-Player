@@ -9,27 +9,12 @@ import axios from "axios";
 function VideoPlayer() {
   const { videoId, channelId } = useParams();
   const navigate = useNavigate();
-  // const [video, setVideo] = useState();
   const videoRef = useRef(null);
   const playerRef = useRef(null);
   const [qualityLevels, setQualityLevels] = useState([
     { value: "auto", label: "Auto" },
   ]);
   const [selectedQuality, setSelectedQuality] = useState("auto");
-
-  // useEffect(() => {
-  //   const fetchVideo = async () => {
-  //     try {
-  //       const response = await axios.get(
-  //         `http://localhost:8080/api/v1/videos/${videoId}`
-  //       );
-  //       setVideo(response.data);        
-  //     } catch (error) {
-  //       console.error("Error fetching video data:", error);
-  //     }
-  //   };
-  //   fetchVideo();
-  // }, []);
 
   const isLive = !!channelId;
   const hlsUrl = isLive
@@ -49,9 +34,11 @@ function VideoPlayer() {
         liveui: true, // Bật giao diện livestream với thanh tua lại
         sources: [{ src: hlsUrl, type: "application/x-mpegURL" }],
         controlBar: {
-          liveDisplay: true, // Hiển thị chỉ báo livestream
-          seekToLive: true, // Nút để nhảy về thời điểm trực tiếp
-          seekBar: true, // Bật thanh tua lại
+          liveDisplay: true, // Hiển thị nhãn "LIVE"
+          seekToLive: true, // Nút nhảy về thời điểm trực tiếp
+          progressControl: {
+            seekBar: true, // Bật thanh tua lại
+          },
         },
       }));
 
@@ -61,16 +48,15 @@ function VideoPlayer() {
 
       player.on("loadedmetadata", () => {
         console.log("Metadata:", player.videoWidth(), player.videoHeight());
-        // Kiểm tra phạm vi tua lại
         const seekable = player.seekable();
-        if (seekable.length > 0) {
-          console.log(
-            "Seekable range:",
-            seekable.start(0),
-            "to",
-            seekable.end(0)
-          );
-        }
+        console.log(
+          "Is live?",
+          player.liveTracker.isLive(),
+          "Seekable range:",
+          seekable.length > 0
+            ? `${seekable.start(0)} to ${seekable.end(0)}`
+            : "No seekable range"
+        );
       });
 
       player.ready(() => {
@@ -88,18 +74,15 @@ function VideoPlayer() {
           setQualityLevels([...qualityList]);
         });
 
-        // Đảm bảo player theo dõi livestream và hỗ trợ DVR
         if (isLive) {
           player.liveTracker.on("liveedgechange", () => {
             const seekable = player.seekable();
-            if (seekable.length > 0) {
-              console.log(
-                "DVR window:",
-                seekable.start(0),
-                "to",
-                seekable.end(0)
-              );
-            }
+            console.log(
+              "DVR window:",
+              seekable.length > 0
+                ? `${seekable.start(0)} to ${seekable.end(0)}`
+                : "No DVR window"
+            );
           });
         }
       });
