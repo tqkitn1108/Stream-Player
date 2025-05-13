@@ -1,20 +1,15 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import videojs from "video.js";
 import "video.js/dist/video-js.css";
 import "videojs-contrib-quality-levels"; // Plugin quản lý chất lượng
-import { Select } from "antd";
-import axios from "axios";
+import "jb-videojs-hls-quality-selector"; // Plugin chọn chất lượng
 
 function VideoPlayer() {
   const { videoId, channelId } = useParams();
   const navigate = useNavigate();
   const videoRef = useRef(null);
   const playerRef = useRef(null);
-  const [qualityLevels, setQualityLevels] = useState([
-    { value: "auto", label: "Auto" },
-  ]);
-  const [selectedQuality, setSelectedQuality] = useState("auto");
 
   const isLive = !!channelId;
   const hlsUrl = isLive
@@ -42,6 +37,17 @@ function VideoPlayer() {
         },
       }));
 
+      // Khởi tạo plugin hlsQualitySelector
+      try {
+        player.hlsQualitySelector({
+          displayCurrentQuality: true, // Hiển thị độ phân giải hiện tại trên nút
+          vjsIconClass: "vjs-icon-cog", // Sử dụng biểu tượng bánh răng
+        });
+        console.log("HLS quality selector initialized");
+      } catch (error) {
+        console.error("Failed to initialize HLS quality selector:", error);
+      }
+
       player.on("error", () => {
         console.error("Video.js error:", player.error());
       });
@@ -59,33 +65,17 @@ function VideoPlayer() {
         );
       });
 
-      player.ready(() => {
-        const levels = player.qualityLevels();
-        const qualityList = [{ value: "auto", label: "Auto" }];
-
-        levels.on("change", () => {
-          qualityList.length = 1;
-          for (let i = 0; i < levels.length; i++) {
-            qualityList.push({
-              value: i,
-              label: levels[i].height ? `${levels[i].height}p` : "Unknown",
-            });
-          }
-          setQualityLevels([...qualityList]);
+      if (isLive) {
+        player.liveTracker.on("liveedgechange", () => {
+          const seekable = player.seekable();
+          console.log(
+            "DVR window:",
+            seekable.length > 0
+              ? `${seekable.start(0)} to ${seekable.end(0)}`
+              : "No DVR window"
+          );
         });
-
-        if (isLive) {
-          player.liveTracker.on("liveedgechange", () => {
-            const seekable = player.seekable();
-            console.log(
-              "DVR window:",
-              seekable.length > 0
-                ? `${seekable.start(0)} to ${seekable.end(0)}`
-                : "No DVR window"
-            );
-          });
-        }
-      });
+      }
     }
 
     return () => {
@@ -98,23 +88,6 @@ function VideoPlayer() {
     };
   }, [hlsUrl, isLive]);
 
-  const handleQualityChange = (value) => {
-    setSelectedQuality(value);
-    const player = playerRef.current;
-    if (!player) return;
-
-    const levels = player.qualityLevels();
-    const levelsArray = Array.from(
-      { length: levels.length },
-      (_, i) => levels[i]
-    );
-    if (value === "auto") {
-      levelsArray.forEach((level) => (level.enabled = true));
-    } else {
-      levelsArray.forEach((level, i) => (level.enabled = i === value));
-    }
-  };
-
   return (
     <div className="container mx-auto p-4">
       <button
@@ -125,14 +98,6 @@ function VideoPlayer() {
       </button>
 
       <div className="w-full max-w-4xl mx-auto">
-        <div className="mb-4">
-          <Select
-            value={selectedQuality}
-            onChange={handleQualityChange}
-            options={qualityLevels}
-            style={{ width: 120 }}
-          />
-        </div>
         <div data-vjs-player>
           <video
             ref={videoRef}
