@@ -1,71 +1,185 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { Link, useNavigate } from "react-router-dom";
+import Navbar from "./Navbar"; // Import Navbar
+import Footer from "./Footer"; // Import Footer
+import { Swiper, SwiperSlide } from "swiper/react";
+import { Navigation, Pagination, Autoplay } from "swiper/modules";
+import "swiper/css";
+import "swiper/css/navigation";
+import "swiper/css/pagination";
+import fcBanner from "../assets/fc_banner.png";
 
 function VideoList() {
   const [videos, setVideos] = useState([]);
   const navigate = useNavigate();
 
+  // Dữ liệu banner slides
+  const bannerSlides = [
+    {
+      id: 1,
+      image:
+        "https://img-zlr1.tv360.vn/image1/2025/05/07/16/1746609439742/8d1ef1e20c73.jpg",
+      title: "Khám phá bộ sưu tập phim hành động mới nhất",
+    },
+    {
+      id: 2,
+      image:
+        "https://img-zlr1.tv360.vn/image1/2025/04/10/08/1744248050645/5e20cadcbcba.jpg",
+      title: "Những câu chuyện cảm động nhất",
+    },
+    {
+      id: 3,
+      image: "https://img-zlr1.tv360.vn/image1/2025/04/10/08/1744248050645/5e20cadcbcba.jpg",
+      title: "Giải trí cho mọi lứa tuổi",
+    },
+  ];
+
   // Định nghĩa 3 kênh live với URL HLS cố định
   const liveChannels = [
-    { id: "hls", title: "Kênh Live 1", hlsUrl: "http://localhost:8080/hls/master.m3u8" },
-    // { id: "channel2", title: "Kênh Live 2", hlsUrl: "http://localhost:8088/hls/stream.m3u8" },
-    // { id: "channel3", title: "Kênh Live 3", hlsUrl: "http://localhost:8088/hls/stream.m3u8" },
+    {
+      id: "hls",
+      title: "Kênh Live 1",
+      hlsUrl: "http://167.172.78.132:8080/hls/master.m3u8",
+      thumbnail: fcBanner, // Sử dụng ảnh local
+    },
+    {
+      id: "channel2",
+      title: "Kênh Live 2",
+      hlsUrl: "http://localhost:8088/hls/stream.m3u8",
+      thumbnail: fcBanner,
+    },
+    {
+      id: "channel3",
+      title: "Kênh Live 3",
+      hlsUrl: "http://localhost:8088/hls/stream.m3u8",
+      thumbnail: fcBanner,
+    },
   ];
 
   useEffect(() => {
     // Lấy danh sách VOD từ API
     axios
-      .get("http://localhost:8080/api/v1/videos")
+      .get("http://167.172.78.132:8080/api/v1/videos")
       .then((response) => setVideos(response.data))
       .catch((error) => console.error("Error fetching videos:", error));
   }, []);
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-center">Danh sách kênh và video</h1>
-        <button
-          onClick={() => navigate("/upload")}
-          className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 cursor-pointer"
+    <div className="bg-gray-900 min-h-screen flex flex-col">
+      {/* Navbar */}
+      <Navbar />
+
+      {/* Main Content - điều chỉnh padding-top để phù hợp với navbar */}
+      <div className="pt-16 flex-grow">
+        {/* Banner with Slider - Full Width */}
+        <Swiper
+          modules={[Navigation, Pagination, Autoplay]}
+          spaceBetween={0}
+          slidesPerView={1}
+          navigation
+          pagination={{ clickable: true }}
+          autoplay={{ delay: 5000 }}
+          className="w-full mb-8"
         >
-          Upload Video
-        </button>
-      </div>
-
-      {/* Phần Kênh Live (Cố Định) */}
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold mb-4">Live Channels</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-          {liveChannels.map((channel) => (
-            <Link
-              key={channel.id}
-              to={`/live/${channel.id}`} // Điều hướng đến một route mới cho live
-              className="bg-white rounded-lg shadow-lg p-4 cursor-pointer hover:shadow-xl transition-shadow"
-            >
-              <h2 className="text-xl font-semibold">{channel.title}</h2>
-              <p className="text-gray-600">Live Stream</p>
-            </Link>
+          {bannerSlides.map((slide) => (
+            <SwiperSlide key={slide.id}>
+              <div className="relative">
+                <img
+                  src={slide.image}
+                  alt="Banner"
+                  className="w-full h-96 object-cover"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = fcBanner; // Fallback nếu ảnh không load được
+                  }}
+                />
+                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                  <div className="text-center">
+                    <h1 className="text-4xl font-bold text-white mb-4">
+                      TVNext
+                    </h1>
+                    <p className="text-xl text-white">{slide.title}</p>
+                  </div>
+                </div>
+              </div>
+            </SwiperSlide>
           ))}
+        </Swiper>
+
+        {/* Main Content */}
+        <div className="container mx-auto px-6">
+          {/* Header */}
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-3xl font-bold text-white">Khám phá nội dung</h1>
+            <button
+              onClick={() => navigate("/upload")}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+            >
+              Upload Video
+            </button>
+          </div>
+
+          {/* Live Channels Section */}
+          <div className="mb-10">
+            <h2 className="text-2xl font-semibold text-white mb-6">
+              Kênh Live
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {liveChannels.map((channel) => (
+                <Link
+                  key={channel.id}
+                  to={`/live/${channel.id}`}
+                  className="bg-gray-800 rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow transform hover:-translate-y-1 hover:scale-105 duration-300"
+                >
+                  <img
+                    src={channel.thumbnail}
+                    alt={channel.title}
+                    className="w-full h-40 object-cover"
+                  />
+                  <div className="p-4">
+                    <h3 className="text-xl font-semibold text-white">
+                      {channel.title}
+                    </h3>
+                    <div className="flex items-center mt-2">
+                      <span className="inline-block w-2 h-2 bg-red-500 rounded-full mr-2 animate-pulse"></span>
+                      <p className="text-gray-300">Live Stream</p>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          {/* Videos Section */}
+          <div className="mb-16">
+            <h2 className="text-2xl font-semibold text-white mb-6">Videos</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {videos.map((video) => (
+                <Link
+                  key={video.id}
+                  to={`/video/${video.id}`}
+                  className="bg-gray-800 rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow transform hover:-translate-y-1 hover:scale-105 duration-300"
+                >
+                  <img
+                    src={video.thumbnail || fcBanner} // Sử dụng ảnh local nếu không có thumbnail
+                    alt={video.title || `Video ${video.id}`}
+                    className="w-full h-40 object-cover"
+                  />
+                  <div className="p-4">
+                    <h3 className="text-xl font-semibold text-white">
+                      {video.title || `Video ${video.id}`}
+                    </h3>
+                    <p className="text-gray-300 mt-2">Click để xem</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
-
-      {/* Phần Video (VOD) */}
-      <div>
-        <h2 className="text-2xl font-semibold mb-4">Videos</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-          {videos.map((video) => (
-            <Link
-              key={video.id}
-              to={`/video/${video.id}`} // Giữ nguyên route cho VOD
-              className="bg-white rounded-lg shadow-lg p-4 cursor-pointer hover:shadow-xl transition-shadow"
-            >
-              <h2 className="text-xl font-semibold">{video.title || `Video ${video.id}`}</h2>
-              <p className="text-gray-600">Click để xem</p>
-            </Link>
-          ))}
-        </div>
-      </div>
+      {/* Footer */}
+      <Footer />
     </div>
   );
 }
