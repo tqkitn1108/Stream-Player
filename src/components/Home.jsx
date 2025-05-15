@@ -14,23 +14,21 @@ function VideoList() {
   const [videos, setVideos] = useState([]);
   const navigate = useNavigate();
 
-  // Dữ liệu banner slides
+  // Sửa phần bannerSlides trong VideoList.jsx
   const bannerSlides = [
     {
       id: 1,
-      image:
-        "https://img-zlr1.tv360.vn/image1/2025/05/07/16/1746609439742/8d1ef1e20c73.jpg",
+      image: fcBanner, // Sử dụng ảnh local đã import
       title: "Khám phá bộ sưu tập phim hành động mới nhất",
     },
     {
       id: 2,
-      image:
-        "https://img-zlr1.tv360.vn/image1/2025/04/10/08/1744248050645/5e20cadcbcba.jpg",
+      image: "https://picsum.photos/1920/1080?random=1", // Thay thế bằng ảnh từ picsum
       title: "Những câu chuyện cảm động nhất",
     },
     {
-      id: 3,
-      image: "https://img-zlr1.tv360.vn/image1/2025/04/10/08/1744248050645/5e20cadcbcba.jpg",
+      id: 3, 
+      image: "https://picsum.photos/1920/1080?random=2", // Thay thế bằng ảnh từ picsum
       title: "Giải trí cho mọi lứa tuổi",
     },
   ];
@@ -109,15 +107,9 @@ function VideoList() {
 
         {/* Main Content */}
         <div className="container mx-auto px-6">
-          {/* Header */}
-          <div className="flex justify-between items-center mb-8">
+          {/* Header - Loại bỏ nút Upload */}
+          <div className="mb-8">
             <h1 className="text-3xl font-bold text-white">Khám phá nội dung</h1>
-            <button
-              onClick={() => navigate("/upload")}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
-            >
-              Upload Video
-            </button>
           </div>
 
           {/* Live Channels Section */}

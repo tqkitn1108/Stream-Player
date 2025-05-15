@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { FaUserCircle, FaSearch, FaCalendarAlt, FaHome, FaFilm, FaStream } from "react-icons/fa";
+import { FaUserCircle, FaSearch, FaCalendarAlt, FaHome, FaFilm, FaStream, FaUpload } from "react-icons/fa";
 
 function Navbar() {
   const navigate = useNavigate();
@@ -64,6 +64,13 @@ function Navbar() {
             >
               <FaCalendarAlt className="text-lg" />
               <span>Lịch phát sóng</span>
+            </Link>
+            <Link
+              to="/upload"
+              className={`flex items-center space-x-1 text-sm font-medium transition-colors ${isActive('/upload') ? 'text-indigo-400 border-b-2 border-indigo-400 pb-1' : 'text-gray-300 hover:text-white'}`}
+            >
+              <FaUpload className="text-lg" />
+              <span>Upload Video</span>
             </Link>
           </div>
 
