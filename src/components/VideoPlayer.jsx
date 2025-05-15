@@ -6,6 +6,11 @@ import "videojs-contrib-quality-levels";
 import "jb-videojs-hls-quality-selector";
 import axios from "axios";
 import Navbar from "./Navbar";
+import dayjs from "dayjs";
+import 'dayjs/locale/vi';
+
+// Cấu hình dayjs
+dayjs.locale('vi');
 
 function VideoPlayer() {
   const { videoId, channelId } = useParams();
@@ -13,21 +18,10 @@ function VideoPlayer() {
   const videoRef = useRef(null);
   const playerRef = useRef(null);
   
-  // Dữ liệu lịch phát từ 0h đến 24h
-  const [schedule, setSchedule] = useState([
-    { "time": "00:00", "program": "Phim đêm khuya" },
-    { "time": "02:00", "program": "Thời sự đêm" },
-    { "time": "04:00", "program": "Phim tài liệu" },
-    { "time": "06:00", "program": "Chào buổi sáng" },
-    { "time": "08:00", "program": "Tin tức sáng" },
-    { "time": "10:00", "program": "Phim truyền hình" },
-    { "time": "12:00", "program": "Thời sự trưa" },
-    { "time": "14:00", "program": "Phim giải trí" },
-    { "time": "16:00", "program": "Show giải trí" },
-    { "time": "18:00", "program": "Thời sự tối" },
-    { "time": "20:00", "program": "Phim giờ vàng" },
-    { "time": "22:00", "program": "Thể thao đêm" }
-  ]);
+  // State cho lịch phát sóng
+  const [schedule, setSchedule] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const isLive = !!channelId;
   const hlsUrl = isLive
@@ -37,12 +31,47 @@ function VideoPlayer() {
   useEffect(() => {
     // Fetch schedule for live channel
     if (isLive) {
-      axios
-        .get(`http://localhost:8081/api/v1/schedule/${channelId}`)
-        .then((response) => setSchedule(response.data))
-        .catch((error) => console.error("Error fetching schedule:", error));
+      fetchChannelSchedule(channelId);
     }
   }, [channelId, isLive]);
+
+  const fetchChannelSchedule = async (channelId) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Lấy lịch từ đầu ngày hiện tại đến cuối ngày
+      const today = dayjs().startOf('day');
+      const startTime = today.format('YYYY-MM-DDT00:00:00');
+      const endTime = today.format('YYYY-MM-DDT23:59:59');
+      
+      const response = await axios.get(`http://localhost:8080/api/v1/schedule`, {
+        params: {
+          channelId: 1,
+          startTime: startTime,
+          endTime: endTime,
+          page: 0,
+          size: 100
+        }
+      });
+
+      if (response.data.code === 200) {
+        // Sắp xếp lịch theo thời gian bắt đầu
+        const sortedSchedule = (response.data.data || []).sort(
+          (a, b) => dayjs(a.startTime).valueOf() - dayjs(b.startTime).valueOf()
+        );
+        setSchedule(sortedSchedule);
+      } else {
+        setError("Không thể tải dữ liệu lịch phát sóng");
+        console.error("API Error:", response.data);
+      }
+    } catch (error) {
+      setError("Lỗi khi lấy lịch phát sóng");
+      console.error("Error fetching schedule:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     const videoElement = videoRef.current;
@@ -52,8 +81,8 @@ function VideoPlayer() {
         autoplay: true,
         controls: true,
         responsive: true,
-        fluid: false, // Thay đổi từ true thành false
-        aspectRatio: '16:9', // Thêm tỷ lệ khung hình
+        fluid: false,
+        aspectRatio: '16:9',
         liveui: true,
         sources: [{ src: hlsUrl, type: "application/x-mpegURL" }],
         controlBar: {
@@ -87,17 +116,18 @@ function VideoPlayer() {
     };
   }, [hlsUrl, isLive]);
 
-  // Highlight chương trình hiện tại dựa trên giờ hiện tại
-  const getCurrentProgram = () => {
-    const now = new Date();
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-    const currentTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-    
-    return currentTime;
+  // Kiểm tra chương trình hiện tại đang phát sóng
+  const isItemCurrent = (item) => {
+    const now = dayjs();
+    const startTime = dayjs(item.startTime);
+    const endTime = dayjs(item.endTime);
+    return now.isAfter(startTime) && now.isBefore(endTime);
   };
 
-  const currentTime = getCurrentProgram();
+  // Format thời gian hiển thị
+  const formatTime = (dateTimeString) => {
+    return dayjs(dateTimeString).format('HH:mm:ss');
+  };
 
   return (
     <div className="bg-gray-900 min-h-screen">
@@ -131,24 +161,64 @@ function VideoPlayer() {
           {/* Schedule Section - Hiển thị bên phải khi là kênh live */}
           {isLive && (
             <div className="lg:w-1/3 bg-gray-800 p-4 rounded-lg self-start">
-              <h2 className="text-2xl font-bold text-white mb-4">Lịch phát sóng</h2>
-              <div className="overflow-y-auto" style={{ maxHeight: "405px" }}>
-                <ul className="space-y-3">
-                  {schedule.map((item, index) => (
-                    <li 
-                      key={index} 
-                      className={`p-3 rounded ${currentTime >= item.time && (index === schedule.length - 1 || currentTime < schedule[index + 1]?.time) 
-                        ? 'bg-indigo-800 border-l-4 border-indigo-500' 
-                        : 'bg-gray-700'}`}
-                    >
-                      <span className="font-semibold text-white">{item.time}</span>: {item.program}
-                      {currentTime >= item.time && (index === schedule.length - 1 || currentTime < schedule[index + 1]?.time) && (
-                        <span className="ml-2 text-xs bg-red-500 text-white px-2 py-1 rounded">Đang chiếu</span>
+              <h2 className="text-2xl font-bold text-white mb-4">Lịch phát sóng hôm nay</h2>
+              
+              {loading ? (
+                <div className="flex justify-center py-10">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+                </div>
+              ) : error ? (
+                <div className="p-4 bg-red-900 bg-opacity-50 text-red-100 rounded">
+                  {error}
+                </div>
+              ) : (
+                <div className="overflow-y-auto" style={{ maxHeight: "500px" }}>
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-gray-700 text-left text-gray-200">
+                        <th className="py-2 px-3 w-1/4">Thời gian</th>
+                        <th className="py-2 px-3">Chương trình</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-600">
+                      {schedule.length > 0 ? (
+                        schedule.map((item) => {
+                          const isCurrent = isItemCurrent(item);
+                          
+                          return (
+                            <tr 
+                              key={item.id} 
+                              className={`${
+                                isCurrent 
+                                  ? 'bg-indigo-800 border-l-4 border-indigo-500' 
+                                  : 'hover:bg-gray-650'
+                              }`}
+                            >
+                              <td className="py-3 px-3 font-medium text-gray-200">
+                                {formatTime(item.startTime)}
+                                {isCurrent && (
+                                  <span className="block mt-1 text-xs bg-red-500 text-white px-1 py-0.5 rounded text-center">
+                                    Đang chiếu
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 px-3 text-gray-200">
+                                {item.title}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan="2" className="py-4 px-3 text-center text-gray-300">
+                            Không có lịch phát sóng hôm nay
+                          </td>
+                        </tr>
                       )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </div>
