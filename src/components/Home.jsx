@@ -90,7 +90,7 @@ function VideoList() {
                   className="w-full h-96 object-cover"
                   onError={(e) => {
                     e.target.onerror = null;
-                    e.target.src = fcBanner; // Fallback nếu ảnh không load được
+                    e.target.src = fc1; // Fallback nếu ảnh không load được
                   }}
                 />
                 <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">

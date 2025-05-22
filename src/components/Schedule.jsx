@@ -30,6 +30,7 @@ function Schedule() {
   const [hasChanges, setHasChanges] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [newScheduleItems, setNewScheduleItems] = useState([]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -43,7 +44,7 @@ function Schedule() {
   const channels = [
     { id: 1, name: "Kênh Live 1" },
     { id: 2, name: "Kênh Live 2" },
-    { id: 3, name: "Kênh Live 3" },
+    // { id: 3, name: "Kênh Live 3" },
   ];
 
   useEffect(() => {
@@ -59,7 +60,6 @@ function Schedule() {
       fetchScheduleForChannel(selectedChannel, selectedDate);
     }
   }, [selectedChannel, selectedDate]);
-
   const handleChannelSelect = (channelId) => {
     if (
       hasChanges &&
@@ -72,6 +72,7 @@ function Schedule() {
 
     setSelectedChannel(channelId);
     setHasChanges(false);
+    setNewScheduleItems([]); // Reset danh sách lịch mới khi đổi kênh
   };
 
   const formatDateForAPI = (date, isEndOfDay = false) => {
@@ -104,12 +105,12 @@ function Schedule() {
           },
         }
       );
-
       if (response.data.code === 200) {
         setSchedule(response.data.data || []);
         setOriginalSchedule(
           JSON.parse(JSON.stringify(response.data.data || []))
         );
+        setNewScheduleItems([]); // Reset danh sách lịch mới khi tải lại dữ liệu
         setHasChanges(false);
       } else {
         setError(
@@ -125,7 +126,6 @@ function Schedule() {
       setLoading(false);
     }
   };
-
   const openAddModal = () => {
     // Tạo thời gian bắt đầu và kết thúc mặc định với dayjs
     const startDateTime = dayjs(selectedDate)
@@ -139,12 +139,12 @@ function Schedule() {
       startTime: startDateTime.format("YYYY-MM-DDTHH:mm:ss"),
       endTime: endDateTime.format("YYYY-MM-DDTHH:mm:ss"),
       title: "",
-      videoPath: "",
-      labels: [], // Thêm mảng labels trống vào đây
+      videoPath: "", // Để hỗ trợ nhập URL
+      labels: [], // Mảng labels trống
+      ads: [], // Mảng quảng cáo trống
     });
     setIsModalOpen(true);
   };
-
   const openEditModal = (item) => {
     setIsEditing(true);
     setCurrentItem(item);
@@ -153,16 +153,26 @@ function Schedule() {
     const startTime = dayjs(item.startTime).format("YYYY-MM-DDTHH:mm:ss");
     const endTime = dayjs(item.endTime).format("YYYY-MM-DDTHH:mm:ss");
 
-    setFormData({
+    // Xác định loại nội dung: từ kho (videoId) hay từ URL
+    const formData = {
       startTime,
       endTime,
       title: item.title || "",
-      videoPath: item.videoPath || "",
-    });
+      labels: item.labels || [],
+      ads: item.ads || [],
+    };
 
+    if (item.videoId) {
+      // Nội dung từ kho
+      formData.videoId = item.videoId;
+    } else {
+      // Nội dung từ URL
+      formData.videoPath = item.video || item.videoPath || "";
+    }
+
+    setFormData(formData);
     setIsModalOpen(true);
   };
-
   const handleFormSubmit = (data) => {
     if (isEditing && currentItem) {
       // Update existing item locally
@@ -177,23 +187,36 @@ function Schedule() {
         ...data,
         position: 0,
         status: 1,
-        labels: [],
+        isNewItem: true, // Đánh dấu đây là item mới
+        // Sử dụng labels từ data, nếu không có thì dùng mảng rỗng
+        labels: data.labels || [],
       };
+
+      // Thêm vào danh sách lịch chung
       setSchedule([...schedule, newItem]);
+
+      // Thêm vào danh sách lịch mới
+      setNewScheduleItems([...newScheduleItems, newItem]);
     }
 
     setIsModalOpen(false);
     setHasChanges(true);
   };
-
   const handleDelete = (itemId) => {
     if (window.confirm("Bạn có chắc chắn muốn xóa mục này không?")) {
+      // Cập nhật danh sách lịch chung
       const updatedSchedule = schedule.filter((item) => item.id !== itemId);
       setSchedule(updatedSchedule);
+
+      // Cập nhật danh sách lịch mới (nếu đó là lịch mới thêm)
+      const updatedNewItems = newScheduleItems.filter(
+        (item) => item.id !== itemId
+      );
+      setNewScheduleItems(updatedNewItems);
+
       setHasChanges(true);
     }
   };
-
   const handleComplete = async () => {
     if (!window.confirm("Bạn có chắc chắn muốn lưu tất cả thay đổi không?")) {
       return;
@@ -202,21 +225,33 @@ function Schedule() {
     setError(null);
 
     try {
-      // Lọc ra chỉ những chương trình chưa phát
-      const scheduleList = schedule
-        .filter((item) => !isItemInPast(item))
-        .map((item) => ({
-          video: item.videoPath || "",
-          audio: item.audioPath || "",
-          subtitle: item.subtitlePath || "",
-          sourceLive: item.sourceLive || "",
-          advPath: item.advPath || "",
+      // Chỉ sử dụng những lịch mới thêm vào để gửi lên server
+      const itemsToSync =
+        newScheduleItems.length > 0
+          ? // Nếu có lịch mới, chỉ gửi lịch mới
+            newScheduleItems.filter((item) => !isItemInPast(item))
+          : // Nếu không có lịch mới (trường hợp chỉnh sửa), gửi tất cả lịch chưa phát
+            schedule.filter((item) => !isItemInPast(item));
+
+      const scheduleList = itemsToSync.map((item) => {
+        // Tạo object cơ bản
+        const scheduleItem = {
           title: item.title || "",
           startTime: item.startTime,
           endTime: item.endTime,
-          position: item.position || 0,
-          labels: [{ name: item.title, color: "#28A745", displayDuration: -1 }], // Đảm bảo sử dụng đúng labels từ item
-        }));
+          labels: item.labels || [], // Sử dụng labels đúng từ item
+          ads: item.ads || [], // Thêm danh sách quảng cáo
+        };
+
+        // Xử lý video/videoId
+        if (item.videoId) {
+          scheduleItem.videoId = item.videoId;
+        } else {
+          scheduleItem.video = item.video || item.videoPath || "";
+        }
+
+        return scheduleItem;
+      });
 
       console.log("Gửi đến server:", scheduleList); // Thêm log để debug
 
@@ -228,9 +263,10 @@ function Schedule() {
           scheduleList: scheduleList,
         }
       );
-
       if (result.data.code === 200) {
         alert("Lưu lịch phát sóng thành công!");
+        // Reset danh sách lịch mới sau khi lưu thành công
+        setNewScheduleItems([]);
         // Refresh schedule from server
         fetchScheduleForChannel(selectedChannel, selectedDate);
       } else {
@@ -256,7 +292,6 @@ function Schedule() {
     const endTime = dayjs(item.endTime);
     return now.isAfter(startTime) && now.isBefore(endTime);
   };
-
   const handleDateChange = (date) => {
     if (
       hasChanges &&
@@ -268,6 +303,7 @@ function Schedule() {
     }
     setSelectedDate(date);
     setHasChanges(false);
+    setNewScheduleItems([]); // Reset danh sách lịch mới khi đổi ngày
   };
 
   return (
@@ -354,9 +390,9 @@ function Schedule() {
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-200 uppercase tracking-wider">
                     Chương trình
-                  </th>
+                  </th>{" "}
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-200 uppercase tracking-wider">
-                    Video URL
+                    Nguồn nội dung
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-200 uppercase tracking-wider">
                     Hành động
@@ -431,9 +467,21 @@ function Schedule() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-200">
                             {item.title}
-                          </td>
+                          </td>{" "}
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-200 truncate max-w-xs">
-                            {item.videoPath}
+                            {item.videoId ? (
+                              <span className="px-2 py-1 bg-green-900 bg-opacity-50 text-green-300 rounded">
+                                ID: {item.videoId}
+                              </span>
+                            ) : item.video || item.videoPath ? (
+                              <span className="text-gray-300">
+                                {item.video || item.videoPath}
+                              </span>
+                            ) : (
+                              <span className="text-gray-500 italic">
+                                Chưa có nguồn
+                              </span>
+                            )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             {isPast ? (
