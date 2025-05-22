@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { Link, useNavigate } from "react-router-dom";
-import Navbar from "./Navbar"; // Import Navbar
-import Footer from "./Footer"; // Import Footer
+import Navbar from "./Navbar";
+import Footer from "./Footer";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Navigation, Pagination, Autoplay } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/navigation";
 import "swiper/css/pagination";
-import fcBanner from "../assets/fc_banner.png";
+import fc1 from "../assets/fc1.png";
+import fc2 from "../assets/fc2.png";
 
 function VideoList() {
   const [videos, setVideos] = useState([]);
@@ -18,7 +19,7 @@ function VideoList() {
   const bannerSlides = [
     {
       id: 1,
-      image: fcBanner, // Sử dụng ảnh local đã import
+      image: fc1, // Sử dụng ảnh local đã import
       title: "Khám phá bộ sưu tập phim hành động mới nhất",
     },
     {
@@ -27,7 +28,7 @@ function VideoList() {
       title: "Những câu chuyện cảm động nhất",
     },
     {
-      id: 3, 
+      id: 3,
       image: "https://picsum.photos/1920/1080?random=2", // Thay thế bằng ảnh từ picsum
       title: "Giải trí cho mọi lứa tuổi",
     },
@@ -39,20 +40,20 @@ function VideoList() {
       id: "hls",
       title: "Kênh Live 1",
       hlsUrl: "http://167.172.78.132:8080/hls/master.m3u8",
-      thumbnail: fcBanner, // Sử dụng ảnh local
+      thumbnail: fc1, // Sử dụng ảnh local
     },
     {
       id: "channel2",
       title: "Kênh Live 2",
       hlsUrl: "http://localhost:8088/hls/stream.m3u8",
-      thumbnail: fcBanner,
+      thumbnail: fc2,
     },
-    {
-      id: "channel3",
-      title: "Kênh Live 3",
-      hlsUrl: "http://localhost:8088/hls/stream.m3u8",
-      thumbnail: fcBanner,
-    },
+    // {
+    //   id: "channel3",
+    //   title: "Kênh Live 3",
+    //   hlsUrl: "http://localhost:8088/hls/stream.m3u8",
+    //   thumbnail: fcBanner,
+    // },
   ];
 
   useEffect(() => {

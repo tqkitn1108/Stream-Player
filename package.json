@@ -18,6 +18,7 @@
     "dayjs": "^1.11.13",
     "formik": "^2.4.6",
     "jb-videojs-hls-quality-selector": "^2.0.2",
+    "keycloak-js": "^25.0.4",
     "react": "^19.0.0",
     "react-datepicker": "^8.3.0",
     "react-dom": "^19.0.0",
