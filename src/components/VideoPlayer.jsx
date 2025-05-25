@@ -25,7 +25,7 @@ function VideoPlayer() {
 
   const isLive = !!channelId;
   const hlsUrl = isLive
-    ? `http://167.172.78.132:8080/${channelId}/master.m3u8`
+    ? `https://fast-api-gstv.onrender.com/${channelId}/master.m3u8`
     : videoId ? `http://167.172.78.132:8080/vod/${videoId}.m3u8` : "";
 
   useEffect(() => {

@@ -53,13 +53,38 @@ function Schedule() {
       handleChannelSelect(channels[0].id);
     }
   }, []);
-
   // Khi thay đổi kênh hoặc ngày
   useEffect(() => {
     if (selectedChannel && selectedDate) {
       fetchScheduleForChannel(selectedChannel, selectedDate);
     }
   }, [selectedChannel, selectedDate]);
+
+  // Thêm useEffect để cập nhật trạng thái "Đang chiếu" mỗi 10 giây
+  useEffect(() => {
+    // Chỉ thiết lập polling nếu đang xem lịch của ngày hiện tại
+    if (dayjs(selectedDate).isSame(dayjs(), "day") && schedule.length > 0) {
+      const intervalId = setInterval(() => {
+        // Chỉ cập nhật UI, không gọi API
+        setSchedule((currentSchedule) => {
+          // Kiểm tra xem có cần cập nhật UI hay không
+          const shouldUpdateUI = currentSchedule.some((item) => {
+            const wasCurrent = isItemCurrent(item);
+            const isCurrent = checkItemIsCurrent(item);
+            return wasCurrent !== isCurrent;
+          });
+
+          if (shouldUpdateUI) {
+            // Tạo bản sao mới để kích hoạt re-render
+            return [...currentSchedule];
+          }
+          return currentSchedule;
+        });
+      }, 10000); // Cập nhật mỗi 10 giây
+
+      return () => clearInterval(intervalId); // Dọn dẹp khi unmount
+    }
+  }, [selectedDate, schedule]);
   const handleChannelSelect = (channelId) => {
     if (
       hasChanges &&
@@ -84,17 +109,19 @@ function Schedule() {
     }
     return d.format("YYYY-MM-DDT00:00:00");
   };
-
   const fetchScheduleForChannel = async (channelId, date) => {
     setLoading(true);
     setError(null);
+    // Reset the schedule immediately to avoid showing stale data
+    setSchedule([]);
+    setOriginalSchedule([]);
 
     try {
       const startTime = formatDateForAPI(date); // 00:00:00
       const endTime = formatDateForAPI(date, true); // 23:59:59
 
       const response = await axios.get(
-        `http://localhost:8080/api/v1/schedule`,
+        `https://fast-api-gstv.onrender.com/api/v1/schedule`,
         {
           params: {
             channelId: channelId,
@@ -127,11 +154,24 @@ function Schedule() {
     }
   };
   const openAddModal = () => {
-    // Tạo thời gian bắt đầu và kết thúc mặc định với dayjs
-    const startDateTime = dayjs(selectedDate)
-      .hour(dayjs().hour() + 1)
-      .minute(0)
-      .second(0);
+    // Find the latest schedule item that's not in the past
+    const sortedSchedule = [...schedule]
+      .filter((item) => !isItemInPast(item))
+      .sort((a, b) => dayjs(b.endTime).valueOf() - dayjs(a.endTime).valueOf());
+
+    let startDateTime;
+
+    if (sortedSchedule.length > 0) {
+      // Use the end time of the latest schedule item as the start time for the new item
+      startDateTime = dayjs(sortedSchedule[0].endTime);
+    } else {
+      // If no items or all items are in the past, use current hour + 1
+      startDateTime = dayjs(selectedDate)
+        .hour(dayjs().hour() + 1)
+        .minute(0)
+        .second(0);
+    }
+
     const endDateTime = startDateTime.add(30, "minute");
 
     setIsEditing(false);
@@ -279,19 +319,22 @@ function Schedule() {
       setLoading(false);
     }
   };
-
   const isItemInPast = (item) => {
     const now = dayjs();
     const itemEndTime = dayjs(item.endTime);
     return itemEndTime.isBefore(now);
   };
 
-  const isItemCurrent = (item) => {
+  // Đổi tên hàm cũ để tránh xung đột
+  const checkItemIsCurrent = (item) => {
     const now = dayjs();
     const startTime = dayjs(item.startTime);
     const endTime = dayjs(item.endTime);
     return now.isAfter(startTime) && now.isBefore(endTime);
   };
+
+  // Sử dụng hàm mới, nhưng giữ tên hàm cũ để code khác không bị ảnh hưởng
+  const isItemCurrent = checkItemIsCurrent;
   const handleDateChange = (date) => {
     if (
       hasChanges &&
@@ -315,7 +358,6 @@ function Schedule() {
             <FaCalendarAlt className="mr-3 text-indigo-400" />
             Quản lý lịch phát sóng
           </h1>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             <div>
               <h2 className="text-xl text-white mb-4">Chọn kênh</h2>
@@ -348,35 +390,34 @@ function Schedule() {
               </div>
             </div>
           </div>
-
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl text-white">
               Lịch phát sóng - {dayjs(selectedDate).format("DD/MM/YYYY")}
             </h2>
-            <div className="flex space-x-3">
-              <button
-                onClick={openAddModal}
-                className="flex items-center px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition"
-                disabled={dayjs(selectedDate).isBefore(dayjs().startOf("day"))}
-              >
-                <FaPlus className="mr-2" />
-                Thêm mới
-              </button>
-              <button
-                onClick={handleComplete}
-                disabled={!hasChanges || loading}
-                className={`flex items-center px-4 py-2 ${
-                  hasChanges && !loading
-                    ? "bg-indigo-600 hover:bg-indigo-700"
-                    : "bg-gray-600 cursor-not-allowed"
-                } text-white rounded transition`}
-              >
-                <FaCheck className="mr-2" />
-                {loading ? "Đang xử lý..." : "Hoàn tất"}
-              </button>
-            </div>
+            {!dayjs(selectedDate).isBefore(dayjs().startOf("day")) && (
+              <div className="flex space-x-3">
+                <button
+                  onClick={openAddModal}
+                  className="flex items-center px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition"
+                >
+                  <FaPlus className="mr-2" />
+                  Thêm mới
+                </button>
+                <button
+                  onClick={handleComplete}
+                  disabled={!hasChanges || loading}
+                  className={`flex items-center px-4 py-2 ${
+                    hasChanges && !loading
+                      ? "bg-indigo-600 hover:bg-indigo-700"
+                      : "bg-gray-600 cursor-not-allowed"
+                  } text-white rounded transition`}
+                >
+                  <FaCheck className="mr-2" />
+                  {loading ? "Đang xử lý..." : "Hoàn tất"}
+                </button>
+              </div>
+            )}
           </div>
-
           {/* Bảng lịch */}
           <div className="overflow-x-auto">
             <table className="min-w-full bg-gray-700 rounded-lg overflow-hidden">
@@ -390,7 +431,7 @@ function Schedule() {
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-200 uppercase tracking-wider">
                     Chương trình
-                  </th>{" "}
+                  </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-200 uppercase tracking-wider">
                     Nguồn nội dung
                   </th>
@@ -448,7 +489,7 @@ function Schedule() {
                           className={`
                             ${isPast ? "opacity-70" : "hover:bg-gray-650"} 
                             ${
-                              isCurrent
+                              checkItemIsCurrent(item)
                                 ? "bg-indigo-800 border-l-4 border-indigo-500"
                                 : ""
                             } 
@@ -457,8 +498,9 @@ function Schedule() {
                         >
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
                             <div>
-                              {dayjs(item.startTime).format("HH:mm:ss")}
-                              {isCurrent && (
+                              {dayjs(item.startTime).format("HH:mm:ss")} -{" "}
+                              {dayjs(item.endTime).format("HH:mm:ss")}
+                              {checkItemIsCurrent(item) && (
                                 <span className="ml-2 text-xs bg-red-500 text-white px-2 py-1 rounded">
                                   Đang chiếu
                                 </span>
@@ -467,7 +509,7 @@ function Schedule() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-200">
                             {item.title}
-                          </td>{" "}
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-200 truncate max-w-xs">
                             {item.videoId ? (
                               <span className="px-2 py-1 bg-green-900 bg-opacity-50 text-green-300 rounded">
@@ -529,7 +571,6 @@ function Schedule() {
               </tbody>
             </table>
           </div>
-
           {hasChanges && (
             <div className="mt-4 p-3 bg-amber-800 bg-opacity-50 text-amber-100 rounded-lg">
               Lưu ý: Bạn có thay đổi chưa được lưu. Nhấn "Hoàn tất" để lưu thay

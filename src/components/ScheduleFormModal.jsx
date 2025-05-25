@@ -280,52 +280,54 @@ function ScheduleFormModal({
   const isDisabled = isEditing && isItemInPast(currentItem);
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-30">
-      <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-md">
+      <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <h2 className="text-2xl font-bold text-white mb-4">
           {modalTitle} lịch phát sóng
         </h2>
         <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
-          {/* Form fields giữ nguyên */}
-          <div>
-            <label className="block text-gray-200 mb-2">
-              Thời gian bắt đầu
-            </label>
-            <input
-              type="datetime-local"
-              {...register("startTime", {
-                required: "Thời gian bắt đầu là bắt buộc",
-              })}
-              className="w-full px-4 py-2 bg-gray-700 text-white rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              disabled={isDisabled}
-              step="1"
-            />
-            {errors.startTime && (
-              <span className="text-red-400 text-sm">
-                {errors.startTime.message}
-              </span>
-            )}
+          {/* Form fields with improved layout */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="block text-gray-200 mb-1">
+                Thời gian bắt đầu
+              </label>
+              <input
+                type="datetime-local"
+                {...register("startTime", {
+                  required: "Thời gian bắt đầu là bắt buộc",
+                })}
+                className="w-full px-4 py-2 bg-gray-700 text-white rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                disabled={isDisabled}
+                step="1"
+              />
+              {errors.startTime && (
+                <span className="text-red-400 text-sm">
+                  {errors.startTime.message}
+                </span>
+              )}
+            </div>
+            <div className="space-y-2">
+              <label className="block text-gray-200 mb-1">
+                Thời gian kết thúc
+              </label>
+              <input
+                type="datetime-local"
+                {...register("endTime", {
+                  required: "Thời gian kết thúc là bắt buộc",
+                })}
+                className="w-full px-4 py-2 bg-gray-700 text-white rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                disabled={isDisabled}
+                step="1"
+              />
+              {errors.endTime && (
+                <span className="text-red-400 text-sm">
+                  {errors.endTime.message}
+                </span>
+              )}
+            </div>
           </div>
-          <div>
-            <label className="block text-gray-200 mb-2">
-              Thời gian kết thúc
-            </label>
-            <input
-              type="datetime-local"
-              {...register("endTime", {
-                required: "Thời gian kết thúc là bắt buộc",
-              })}
-              className="w-full px-4 py-2 bg-gray-700 text-white rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              disabled={isDisabled}
-              step="1"
-            />
-            {errors.endTime && (
-              <span className="text-red-400 text-sm">
-                {errors.endTime.message}
-              </span>
-            )}
-          </div>
-          <div>
-            <label className="block text-gray-200 mb-2">Tiêu đề</label>
+          <div className="space-y-2">
+            <label className="block text-gray-200 mb-1">Tiêu đề</label>
             <input
               type="text"
               {...register("title", { required: "Tiêu đề là bắt buộc" })}
@@ -337,9 +339,9 @@ function ScheduleFormModal({
                 {errors.title.message}
               </span>
             )}
-          </div>{" "}
-          <div>
-            <label className="block text-gray-200 mb-2">Chọn nội dung</label>
+          </div>
+          <div className="space-y-2 mt-1">
+            <div className="block text-gray-200 mb-2">Chọn nội dung</div>
             <div className="space-y-3">
               {/* Toggle content selection type */}
               <div className="flex border border-gray-600 rounded overflow-hidden mb-3">
@@ -353,7 +355,7 @@ function ScheduleFormModal({
                     contentSelectionType === "url"
                       ? "bg-indigo-600 text-white"
                       : "bg-gray-700 text-gray-300"
-                  }`}
+                  } transition-colors`}
                   disabled={isDisabled}
                 >
                   <FaLink className="mr-2" />
@@ -366,46 +368,62 @@ function ScheduleFormModal({
                     contentSelectionType === "library"
                       ? "bg-indigo-600 text-white"
                       : "bg-gray-700 text-gray-300"
-                  }`}
+                  } transition-colors`}
                   disabled={isDisabled}
                 >
                   <FaDatabase className="mr-2" />
                   Kho nội dung
                 </button>
-              </div>{" "}
+              </div>
               {/* URL Input */}
               {contentSelectionType === "url" && (
-                <input
-                  type="text"
-                  {...register("videoPath", {
-                    required:
-                      contentSelectionType === "url"
-                        ? "Video URL là bắt buộc"
-                        : false,
-                  })}
-                  className="w-full px-4 py-2 bg-gray-700 text-white rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="http://example.com/video.mp4"
-                  disabled={isDisabled}
-                />
+                <div className="flex items-center overflow-hidden border border-gray-600 rounded bg-gray-700 focus-within:ring-2 focus-within:ring-indigo-500">
+                  <span className="pl-3 text-gray-400">
+                    <FaLink />
+                  </span>
+                  <input
+                    type="text"
+                    {...register("videoPath", {
+                      required:
+                        contentSelectionType === "url"
+                          ? "Video URL là bắt buộc"
+                          : false,
+                    })}
+                    className="w-full px-3 py-3 bg-gray-700 text-white focus:outline-none border-none"
+                    placeholder="http://example.com/video.mp4"
+                    disabled={isDisabled}
+                  />
+                </div>
               )}
               {/* Library option: Show selected content or button */}
               {contentSelectionType === "library" && (
                 <div>
                   {selectedContent ? (
-                    <div className="flex justify-between items-center p-3 border border-gray-600 rounded bg-gray-700">
-                      <div>
-                        <h4 className="font-medium text-white">
+                    <div className="flex justify-between items-center p-3 border border-gray-600 rounded bg-gray-700 hover:bg-gray-650 transition-colors">
+                      <div className="overflow-hidden">
+                        <h4 className="font-medium text-white truncate">
                           {selectedContent.title}
                         </h4>
-                        <p className="text-xs text-gray-400">
-                          ID: {selectedContent.id}
+                        <p className="text-xs text-gray-400 flex items-center">
+                          <span className="bg-green-900 bg-opacity-50 text-green-300 rounded px-1 py-0.5 mr-1">
+                            ID: {selectedContent.id}
+                          </span>
+                          {selectedContent.duration && (
+                            <span className="flex items-center ml-2">
+                              <FaClock
+                                className="mr-1 text-gray-500"
+                                size={10}
+                              />
+                              {selectedContent.duration}s
+                            </span>
+                          )}
                         </p>
                       </div>
                       {!isDisabled && (
                         <button
                           type="button"
                           onClick={() => setShowContentLibraryPopup(true)}
-                          className="text-xs bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded text-white"
+                          className="text-xs bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded text-white ml-2 transition-colors"
                         >
                           Thay đổi
                         </button>
@@ -415,7 +433,7 @@ function ScheduleFormModal({
                     <button
                       type="button"
                       onClick={() => setShowContentLibraryPopup(true)}
-                      className="w-full py-2 px-3 border border-dashed border-gray-500 rounded bg-gray-700 text-gray-300 hover:bg-gray-650 flex items-center justify-center"
+                      className="w-full py-3 px-3 border border-dashed border-gray-500 rounded bg-gray-700 text-gray-300 hover:bg-gray-650 flex items-center justify-center transition-colors"
                       disabled={isDisabled}
                     >
                       <FaDatabase className="mr-2" />
@@ -442,10 +460,10 @@ function ScheduleFormModal({
           </div>
           {/* Quảng cáo */}
           <div>
-            <label className="block text-gray-200 mb-2 flex items-center">
+            <div className="text-gray-200 mb-2 flex items-center">
               <FaAd className="mr-2" />
               Quảng cáo trong chương trình
-            </label>
+            </div>
             <div className="space-y-3">
               <div className="border border-gray-600 rounded p-2 bg-gray-700">
                 {scheduleAds.length > 0 ? (
@@ -460,9 +478,9 @@ function ScheduleFormModal({
                             {ad.title}
                           </div>
                           <div className="text-xs text-gray-400 flex items-center">
-                            <FaClock className="mr-1" />{" "}
-                            {dayjs(ad.startTime).format("HH:mm:ss")} -{" "}
-                            {dayjs(ad.endTime).format("HH:mm:ss")}
+                            <FaClock className="mr-1" />
+                            {dayjs(item.startTime).format("HH:mm:ss")} -{" "}
+                            {dayjs(item.endTime).format("HH:mm:ss")}
                           </div>
                         </div>
                         {!isDisabled && (
@@ -532,11 +550,11 @@ function ScheduleFormModal({
               </div>
             </div>
           )}
-          <div className="flex justify-end space-x-3 pt-3">
+          <div className="flex justify-end space-x-3 pt-5 mt-4 border-t border-gray-700">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500 transition"
+              className="px-5 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition-colors flex items-center"
             >
               {isDisabled ? "Đóng" : "Hủy"}
             </button>
@@ -544,9 +562,18 @@ function ScheduleFormModal({
             {!isDisabled && (
               <button
                 type="submit"
-                className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition"
+                className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors flex items-center"
               >
-                {isEditing ? "Cập nhật" : "Thêm"}
+                {isEditing ? (
+                  <>
+                    <FaCheck className="mr-2" /> Cập nhật
+                  </>
+                ) : (
+                  <>
+                    <FaPlus className="mr-2" />
+                    Thêm
+                  </>
+                )}
               </button>
             )}
           </div>

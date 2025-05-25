@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { FaUserCircle, FaSearch, FaCalendarAlt, FaHome, FaFilm, FaStream, FaUpload, FaSignOutAlt } from "react-icons/fa";
+import { FaUserCircle, FaSearch, FaCalendarAlt, FaHome, FaFilm, FaStream, FaUpload, FaSignOutAlt, FaAd } from "react-icons/fa";
 import { login, logout, isAuthenticated, getUser, hasRole } from "../services/keycloak";
 
 function Navbar() {
@@ -9,10 +9,14 @@ function Navbar() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [authenticated, setAuthenticated] = useState(isAuthenticated());
-
   // Kiểm tra người dùng có quyền ADMIN hoặc EDITOR
   const [isAdminOrEditor, setIsAdminOrEditor] = useState(
     hasRole('ADMIN') || hasRole('EDITOR')
+  );
+  
+  // Kiểm tra người dùng có quyền ADMIN hoặc MODERATOR
+  const [isAdminOrModerator, setIsAdminOrModerator] = useState(
+    hasRole('ADMIN') || hasRole('MODERATOR')
   );
 
   // Cập nhật thông tin user khi component mount và khi trạng thái xác thực thay đổi
@@ -20,13 +24,14 @@ function Navbar() {
     const updateUserInfo = () => {
       const isAuth = isAuthenticated();
       setAuthenticated(isAuth);
-      
-      if (isAuth) {
+        if (isAuth) {
         setUser(getUser());
         setIsAdminOrEditor(hasRole('ADMIN') || hasRole('EDITOR'));
+        setIsAdminOrModerator(hasRole('ADMIN') || hasRole('MODERATOR'));
       } else {
         setUser(null);
         setIsAdminOrEditor(false);
+        setIsAdminOrModerator(false);
       }
     };
 
@@ -138,8 +143,7 @@ function Navbar() {
                 >
                   <FaCalendarAlt className="text-lg" />
                   <span>Lịch phát sóng</span>
-                </Link>
-                <Link
+                </Link>                <Link
                   to="/upload"
                   className={`flex items-center space-x-1 text-sm font-medium transition-colors ${isActive('/upload') ? 'text-indigo-400 border-b-2 border-indigo-400 pb-1' : 'text-gray-300 hover:text-white'}`}
                 >
@@ -147,6 +151,17 @@ function Navbar() {
                   <span>Upload Video</span>
                 </Link>
               </>
+            )}
+            
+            {/* Chỉ hiển thị menu Quản lý quảng cáo khi là ADMIN hoặc MODERATOR */}
+            {isAdminOrModerator && (
+              <Link
+                to="/ads"
+                className={`flex items-center space-x-1 text-sm font-medium transition-colors ${isActive('/ads') ? 'text-indigo-400 border-b-2 border-indigo-400 pb-1' : 'text-gray-300 hover:text-white'}`}
+              >
+                <FaAd className="text-lg" />
+                <span>Quản lý quảng cáo</span>
+              </Link>
             )}
           </div>
 

@@ -10,6 +10,7 @@ import "swiper/css/navigation";
 import "swiper/css/pagination";
 import fc1 from "../assets/fc1.png";
 import fc2 from "../assets/fc2.png";
+import vod from "../assets/vod.png";
 
 function VideoList() {
   const [videos, setVideos] = useState([]);
@@ -39,7 +40,7 @@ function VideoList() {
     {
       id: "hls",
       title: "Kênh Live 1",
-      hlsUrl: "http://167.172.78.132:8080/hls/master.m3u8",
+      hlsUrl: "http://localhost:8080/hls/master.m3u8",
       thumbnail: fc1, // Sử dụng ảnh local
     },
     {
@@ -155,7 +156,7 @@ function VideoList() {
                   className="bg-gray-800 rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow transform hover:-translate-y-1 hover:scale-105 duration-300"
                 >
                   <img
-                    src={video.thumbnail || fcBanner} // Sử dụng ảnh local nếu không có thumbnail
+                    src={video.thumbnail || vod} // Sử dụng ảnh local nếu không có thumbnail
                     alt={video.title || `Video ${video.id}`}
                     className="w-full h-40 object-cover"
                   />
