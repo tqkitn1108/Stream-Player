@@ -1,15 +1,26 @@
 import React, { useState, useEffect } from "react";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
-import { FaUpload, FaEdit, FaTrashAlt, FaCheck, FaTimes, FaFilter, FaPlus, FaSearch } from "react-icons/fa";
+import {
+  FaUpload,
+  FaEdit,
+  FaTrashAlt,
+  FaCheck,
+  FaTimes,
+  FaFilter,
+  FaPlus,
+  FaSearch,
+} from "react-icons/fa";
 import AdUploadModal from "./AdUploadModal";
 import AdEditModal from "./AdEditModal";
+import ThumbnailImage from "./ThumbnailImage";
 import axios from "axios";
-import adBanner from "../assets/ad.png";
 
 // We'll fetch categories and ads from the API
 // API URL constants
-const API_BASE_URL = `${import.meta.env.VITE_BACKEND_URL}/api/v1` || "http://localhost:8080/api/v1";
+const API_BASE_URL =
+  `${import.meta.env.VITE_BACKEND_URL}/api/v1` ||
+  "http://localhost:8080/api/v1";
 const CATEGORIES_API_URL = `${API_BASE_URL}/ads/category`;
 const ADS_API_URL = `${API_BASE_URL}/ads`;
 
@@ -17,7 +28,7 @@ const ADS_API_URL = `${API_BASE_URL}/ads`;
 const AD_STATUS = {
   PENDING: 0,
   APPROVED: 1,
-  REJECTED: 2
+  REJECTED: 2,
 };
 
 function AdManagement() {
@@ -39,7 +50,11 @@ function AdManagement() {
       try {
         const response = await axios.get(CATEGORIES_API_URL);
         // Handle API response format: { code, message, data }
-        if (response.data && response.data.code === 200 && Array.isArray(response.data.data)) {
+        if (
+          response.data &&
+          response.data.code === 200 &&
+          Array.isArray(response.data.data)
+        ) {
           setCategories(response.data.data);
         }
       } catch (error) {
@@ -56,10 +71,14 @@ function AdManagement() {
       try {
         const response = await axios.get(ADS_API_URL);
         // Handle API response format: { code, message, data }
-        if (response.data && response.data.code === 200 && Array.isArray(response.data.data)) {
-          const formattedAds = response.data.data.map(ad => ({
+        if (
+          response.data &&
+          response.data.code === 200 &&
+          Array.isArray(response.data.data)
+        ) {
+          const formattedAds = response.data.data.map((ad) => ({
             ...ad,
-            status: getStatusString(ad.status)
+            status: getStatusString(ad.status),
           }));
           setAds(formattedAds);
           setFilteredAds(formattedAds);
@@ -120,15 +139,13 @@ function AdManagement() {
     // Filter by status
     if (filters.status !== "all") {
       filtered = filtered.filter((ad) => ad.status === filters.status);
-    }
-
-    // Filter by search term
+    }    // Filter by search term
     if (filters.search.trim() !== "") {
       const searchTerm = filters.search.toLowerCase();
       filtered = filtered.filter(
         (ad) =>
-          ad.title.toLowerCase().includes(searchTerm) ||
-          ad.description.toLowerCase().includes(searchTerm)
+          (ad.title && ad.title.toLowerCase().includes(searchTerm)) ||
+          (ad.description && ad.description.toLowerCase().includes(searchTerm))
       );
     }
 
@@ -142,34 +159,39 @@ function AdManagement() {
 
   const handleSearchChange = (e) => {
     setFilters({ ...filters, search: e.target.value });
-  };  const handleAddAd = async (newAd) => {
+  };
+  const handleAddAd = async (newAd) => {
     try {
       // The ad is already uploaded and returned from the backend
       // Just add it to the state with the proper status string
       const addedAd = {
         ...newAd,
-        status: getStatusString(newAd.status)
+        status: getStatusString(newAd.status),
       };
-      
+
       setAds([...ads, addedAd]);
       setIsUploadModalOpen(false);
     } catch (error) {
       console.error("Error adding ad:", error);
       alert("Failed to add ad. Please try again.");
     }
-  };  const handleUpdateAd = async (updatedAd) => {
+  };
+  const handleUpdateAd = async (updatedAd) => {
     try {
       // If updating with new video, the data already comes from the backend
       // Just ensure the status is correctly formatted
       const updatedAdWithStatus = {
         ...updatedAd,
-        status: typeof updatedAd.status === 'number' ? getStatusString(updatedAd.status) : updatedAd.status
+        status:
+          typeof updatedAd.status === "number"
+            ? getStatusString(updatedAd.status)
+            : updatedAd.status,
       };
-      
+
       const updatedAds = ads.map((ad) =>
         ad.id === updatedAdWithStatus.id ? updatedAdWithStatus : ad
       );
-      
+
       setAds(updatedAds);
       setIsEditModalOpen(false);
     } catch (error) {
@@ -187,17 +209,18 @@ function AdManagement() {
         alert("Failed to delete ad. Please try again.");
       }
     }
-  };  const handleApproveAd = async (id) => {
+  };
+  const handleApproveAd = async (id) => {
     try {
       // Find the current ad
-      const adToUpdate = ads.find(ad => ad.id === id);
+      const adToUpdate = ads.find((ad) => ad.id === id);
       if (!adToUpdate) return;
-      
+
       // Update status to approved
       const response = await axios.put(`${ADS_API_URL}/${id}/status`, {
-        status: AD_STATUS.APPROVED
+        status: AD_STATUS.APPROVED,
       });
-      
+
       // Handle API response format: { code, message, data }
       if (response.data && response.data.code === 200 && response.data.data) {
         const updatedAds = ads.map((ad) =>
@@ -205,7 +228,8 @@ function AdManagement() {
             ? {
                 ...ad,
                 status: "approved",
-                updatedAt: response.data.data.updatedAt || new Date().toISOString(),
+                updatedAt:
+                  response.data.data.updatedAt || new Date().toISOString(),
               }
             : ad
         );
@@ -215,20 +239,21 @@ function AdManagement() {
       console.error("Error approving ad:", error);
       alert("Failed to approve ad. Please try again.");
     }
-  };  const handleRejectAd = async (id) => {
+  };
+  const handleRejectAd = async (id) => {
     const reason = window.prompt("Nhập lý do từ chối quảng cáo:");
     if (reason !== null) {
       try {
         // Find the current ad
-        const adToUpdate = ads.find(ad => ad.id === id);
+        const adToUpdate = ads.find((ad) => ad.id === id);
         if (!adToUpdate) return;
-        
+
         // Update status to rejected with reason
         const response = await axios.put(`${ADS_API_URL}/${id}/status`, {
           status: AD_STATUS.REJECTED,
-          rejectionReason: reason
+          rejectionReason: reason,
         });
-        
+
         // Handle API response format: { code, message, data }
         if (response.data && response.data.code === 200 && response.data.data) {
           const updatedAds = ads.map((ad) =>
@@ -237,7 +262,8 @@ function AdManagement() {
                   ...ad,
                   status: "rejected",
                   rejectionReason: reason,
-                  updatedAt: response.data.data.updatedAt || new Date().toISOString(),
+                  updatedAt:
+                    response.data.data.updatedAt || new Date().toISOString(),
                 }
               : ad
           );
@@ -310,7 +336,8 @@ function AdManagement() {
                   <select
                     name="category"
                     value={filters.category}
-                    onChange={handleFilterChange}                    className="block w-full px-4 py-2 bg-gray-600 text-white rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none"
+                    onChange={handleFilterChange}
+                    className="block w-full px-4 py-2 bg-gray-600 text-white rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none"
                   >
                     <option value="all">Tất cả thể loại</option>
                     {categories.map((cat) => (
@@ -394,90 +421,103 @@ function AdManagement() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-600">
-                  {filteredAds.map((ad) => (
-                    <tr key={ad.id} className="hover:bg-gray-650 transition">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-20 w-32 relative">
-                            <img
-                              className="h-20 w-32 object-cover rounded"
-                              src={ad.thumbnail || adBanner}
-                              alt={ad.title}
-                            />
-                            <div className="absolute bottom-0 right-0 bg-black bg-opacity-75 px-1 text-xs text-white rounded">
-                              {ad.duration}s
+                  {filteredAds.map((ad) => {
+                    // Debug log để kiểm tra dữ liệu ad
+                    console.log("📺 Ad data:", {
+                      id: ad.id,
+                      title: ad.title,
+                      url: ad.url,
+                      hasUrl: !!ad.url,
+                    });
+
+                    return (
+                      <tr key={ad.id} className="hover:bg-gray-650 transition">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0 h-20 w-32 relative">
+                              <ThumbnailImage
+                                videoUrl={ad.url}
+                                alt={ad.title}
+                                className="h-20 w-32"
+                                lazy={true}
+                              />
+                              <div className="absolute bottom-0 right-0 bg-black bg-opacity-75 px-1 text-xs text-white rounded">
+                                {ad.duration}s
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-white">
-                          {ad.title}
-                        </div>
-                        <div className="text-sm text-gray-300 line-clamp-2 max-w-xs">
-                          {ad.description}
-                        </div>
-                        <div className="text-xs text-gray-400 mt-1">
-                          Thể loại: {getCategoryName(ad.categoryId)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div>{getStatusLabel(ad.status)}</div>
-                        {ad.status === "rejected" && (
-                          <div className="text-xs text-red-400 mt-1 max-w-xs">
-                            Lý do: {ad.rejectionReason}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-medium text-white">
+                            {ad.title}
                           </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                        <div>
-                          Tạo: {new Date(ad.createdAt).toLocaleDateString("vi-VN")}
-                        </div>
-                        <div>
-                          Cập nhật: {new Date(ad.updatedAt).toLocaleDateString("vi-VN")}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex justify-end space-x-2">
-                          <button
-                            onClick={() => {
-                              setSelectedAd(ad);
-                              setIsEditModalOpen(true);
-                            }}
-                            className="text-indigo-400 hover:text-indigo-300"
-                            title="Chỉnh sửa"
-                          >
-                            <FaEdit />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteAd(ad.id)}
-                            className="text-red-400 hover:text-red-300"
-                            title="Xóa"
-                          >
-                            <FaTrashAlt />
-                          </button>
-                          {ad.status === "pending" && (
-                            <>
-                              <button
-                                onClick={() => handleApproveAd(ad.id)}
-                                className="text-green-400 hover:text-green-300"
-                                title="Duyệt"
-                              >
-                                <FaCheck />
-                              </button>
-                              <button
-                                onClick={() => handleRejectAd(ad.id)}
-                                className="text-yellow-400 hover:text-yellow-300"
-                                title="Từ chối"
-                              >
-                                <FaTimes />
-                              </button>
-                            </>
+                          <div className="text-sm text-gray-300 line-clamp-2 max-w-xs">
+                            {ad.description}
+                          </div>
+                          <div className="text-xs text-gray-400 mt-1">
+                            Thể loại: {getCategoryName(ad.categoryId)}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div>{getStatusLabel(ad.status)}</div>
+                          {ad.status === "rejected" && (
+                            <div className="text-xs text-red-400 mt-1 max-w-xs">
+                              Lý do: {ad.rejectionReason}
+                            </div>
                           )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                          <div>
+                            Tạo:{" "}
+                            {new Date(ad.createdAt).toLocaleDateString("vi-VN")}
+                          </div>
+                          <div>
+                            Cập nhật:{" "}
+                            {new Date(ad.updatedAt).toLocaleDateString("vi-VN")}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex justify-end space-x-2">
+                            <button
+                              onClick={() => {
+                                setSelectedAd(ad);
+                                setIsEditModalOpen(true);
+                              }}
+                              className="text-indigo-400 hover:text-indigo-300"
+                              title="Chỉnh sửa"
+                            >
+                              <FaEdit />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteAd(ad.id)}
+                              className="text-red-400 hover:text-red-300"
+                              title="Xóa"
+                            >
+                              <FaTrashAlt />
+                            </button>
+                            {ad.status === "pending" && (
+                              <>
+                                <button
+                                  onClick={() => handleApproveAd(ad.id)}
+                                  className="text-green-400 hover:text-green-300"
+                                  title="Duyệt"
+                                >
+                                  <FaCheck />
+                                </button>
+                                <button
+                                  onClick={() => handleRejectAd(ad.id)}
+                                  className="text-yellow-400 hover:text-yellow-300"
+                                  title="Từ chối"
+                                >
+                                  <FaTimes />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             ) : (
@@ -487,15 +527,15 @@ function AdManagement() {
             )}
           </div>
         </div>
-      </div>      {/* Upload Modal */}
+      </div>{" "}
+      {/* Upload Modal */}
       {isUploadModalOpen && (
         <AdUploadModal
           onClose={() => setIsUploadModalOpen(false)}
           onSave={handleAddAd}
-          categories={categories} 
+          categories={categories}
         />
       )}
-
       {/* Edit Modal */}
       {isEditModalOpen && selectedAd && (
         <AdEditModal
@@ -505,7 +545,6 @@ function AdManagement() {
           categories={categories}
         />
       )}
-
       <Footer />
     </div>
   );

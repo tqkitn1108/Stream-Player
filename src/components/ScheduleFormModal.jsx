@@ -15,6 +15,10 @@ import dayjs from "dayjs";
 import ContentLibraryModal from "./ContentLibraryModal";
 import AdsSelectionModal from "./AdsSelectionModal";
 
+const API_BASE_URL =
+  `${import.meta.env.VITE_BACKEND_URL}/api/v1` ||
+  "http://localhost:8080/api/v1";
+
 function ScheduleFormModal({
   isOpen,
   onClose,
@@ -25,11 +29,7 @@ function ScheduleFormModal({
   isItemInPast,
 }) {
   if (!isOpen) return null;
-
-  // Theo dõi trạng thái bật/tắt hiển thị label
-  const [showLabel, setShowLabel] = useState(
-    initialFormData.labels && initialFormData.labels.length > 0
-  );
+  const [showLabel, setShowLabel] = useState(true);
 
   // Thêm state cho content selection
   const [contentSelectionType, setContentSelectionType] = useState("url"); // "url" hoặc "library"
@@ -78,9 +78,7 @@ function ScheduleFormModal({
   const fetchContentLibrary = async () => {
     try {
       setLoadingContent(true);
-      const response = await axios.get(
-        "http://localhost:8080/api/v1/videos/verified"
-      );
+      const response = await axios.get(`${API_BASE_URL}/videos/verified`);
       if (response.data.code === 200) {
         setContentLibrary(response.data.data || []);
       } else {
@@ -96,9 +94,7 @@ function ScheduleFormModal({
   const fetchAdsList = async () => {
     try {
       setLoadingAds(true);
-      const response = await axios.get(
-        "http://localhost:8080/api/v1/ads/verified"
-      );
+      const response = await axios.get(`${API_BASE_URL}/ads/verified`);
       if (response.data.code === 200) {
         setAdsList(response.data.data || []);
       } else {
@@ -405,9 +401,6 @@ function ScheduleFormModal({
                           {selectedContent.title}
                         </h4>
                         <p className="text-xs text-gray-400 flex items-center">
-                          <span className="bg-green-900 bg-opacity-50 text-green-300 rounded px-1 py-0.5 mr-1">
-                            ID: {selectedContent.id}
-                          </span>
                           {selectedContent.duration && (
                             <span className="flex items-center ml-2">
                               <FaClock
