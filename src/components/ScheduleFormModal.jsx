@@ -472,8 +472,8 @@ function ScheduleFormModal({
                           </div>
                           <div className="text-xs text-gray-400 flex items-center">
                             <FaClock className="mr-1" />
-                            {dayjs(item.startTime).format("HH:mm:ss")} -{" "}
-                            {dayjs(item.endTime).format("HH:mm:ss")}
+                            {dayjs(ad.startTime).format("HH:mm:ss")} -{" "}
+                            {dayjs(ad.endTime).format("HH:mm:ss")}
                           </div>
                         </div>
                         {!isDisabled && (

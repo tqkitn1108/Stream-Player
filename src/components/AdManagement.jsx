@@ -214,10 +214,8 @@ function AdManagement() {
     try {
       // Find the current ad
       const adToUpdate = ads.find((ad) => ad.id === id);
-      if (!adToUpdate) return;
-
-      // Update status to approved
-      const response = await axios.put(`${ADS_API_URL}/${id}/status`, {
+      if (!adToUpdate) return;      // Update status to approved
+      const response = await axios.patch(`${ADS_API_URL}/${id}/status`, {
         status: AD_STATUS.APPROVED,
       });
 

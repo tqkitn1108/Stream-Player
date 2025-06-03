@@ -93,9 +93,8 @@ function AdEditModal({ ad, onClose, onSave, categories }) {const [formData, setF
         uploadFormData.append('adId', ad.id); // Include ad ID for update
         
         console.log("Uploading updated video...");        setUploadProgress(10);
-        
-        const uploadResponse = await axios.post(
-          `${API_BASE_URL}/ads/upload`, 
+          const uploadResponse = await axios.put(
+          `${API_BASE_URL}/ads/${ad.id}`, 
           uploadFormData,
           {
             headers: {
