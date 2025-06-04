@@ -17,23 +17,34 @@ function VideoPlayer() {
   const navigate = useNavigate();
   const videoRef = useRef(null);
   const playerRef = useRef(null);
-  
-  // State cho lịch phát sóng
+    // State cho lịch phát sóng
   const [schedule, setSchedule] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [currentTime, setCurrentTime] = useState(dayjs()); // Theo dõi thời gian hiện tại
 
   const isLive = !!channelId;
   const hlsUrl = isLive
     ? `https://fast-api-gstv.onrender.com/${channelId}/master.m3u8`
     : videoId ? `http://167.172.78.132:8080/vod/${videoId}.m3u8` : "";
-
   useEffect(() => {
     // Fetch schedule for live channel
     if (isLive) {
       fetchChannelSchedule(channelId);
     }
   }, [channelId, isLive]);
+
+  // Thêm useEffect để cập nhật trạng thái "Đang chiếu" mỗi 10 giây cho VideoPlayer
+  useEffect(() => {
+    if (isLive) {
+      const intervalId = setInterval(() => {
+        // Cập nhật thời gian hiện tại để kích hoạt re-render
+        setCurrentTime(dayjs());
+      }, 10000); // Cập nhật mỗi 10 giây
+
+      return () => clearInterval(intervalId); // Dọn dẹp khi unmount
+    }
+  }, [isLive]);
 
   const fetchChannelSchedule = async (channelId) => {
     setLoading(true);
@@ -115,10 +126,9 @@ function VideoPlayer() {
       }
     };
   }, [hlsUrl, isLive]);
-
   // Kiểm tra chương trình hiện tại đang phát sóng
   const isItemCurrent = (item) => {
-    const now = dayjs();
+    const now = currentTime;
     const startTime = dayjs(item.startTime);
     const endTime = dayjs(item.endTime);
     return now.isAfter(startTime) && now.isBefore(endTime);

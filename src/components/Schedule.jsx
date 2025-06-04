@@ -9,12 +9,14 @@ import {
   FaClock,
   FaCheck,
   FaEye,
+  FaStop,
 } from "react-icons/fa";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import ScheduleFormModal from "./ScheduleFormModal";
+import StopCurrentModal from "./StopCurrentModal";
+import keycloak from "../services/keycloak";
 import dayjs from "dayjs";
-import "dayjs/locale/vi";
 
 // Cấu hình dayjs
 dayjs.locale("vi");
@@ -29,9 +31,11 @@ function Schedule() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [newScheduleItems, setNewScheduleItems] = useState([]);
+  const [error, setError] = useState(null);  const [newScheduleItems, setNewScheduleItems] = useState([]);
   const [deletedIds, setDeletedIds] = useState([]); // Theo dõi các ID đã bị xóa
+  const [isStopModalOpen, setIsStopModalOpen] = useState(false);
+  const [currentPlayingItem, setCurrentPlayingItem] = useState(null);
+  const [currentTime, setCurrentTime] = useState(dayjs()); // Theo dõi thời gian hiện tại
 
   // Form state
   const [formData, setFormData] = useState({
@@ -59,33 +63,18 @@ function Schedule() {
     if (selectedChannel && selectedDate) {
       fetchScheduleForChannel(selectedChannel, selectedDate);
     }
-  }, [selectedChannel, selectedDate]);
-
-  // Thêm useEffect để cập nhật trạng thái "Đang chiếu" mỗi 10 giây
+  }, [selectedChannel, selectedDate]);  // Thêm useEffect để cập nhật trạng thái "Đang chiếu" mỗi 10 giây
   useEffect(() => {
     // Chỉ thiết lập polling nếu đang xem lịch của ngày hiện tại
-    if (dayjs(selectedDate).isSame(dayjs(), "day") && schedule.length > 0) {
+    if (dayjs(selectedDate).isSame(dayjs(), "day")) {
       const intervalId = setInterval(() => {
-        // Chỉ cập nhật UI, không gọi API
-        setSchedule((currentSchedule) => {
-          // Kiểm tra xem có cần cập nhật UI hay không
-          const shouldUpdateUI = currentSchedule.some((item) => {
-            const wasCurrent = isItemCurrent(item);
-            const isCurrent = checkItemIsCurrent(item);
-            return wasCurrent !== isCurrent;
-          });
-
-          if (shouldUpdateUI) {
-            // Tạo bản sao mới để kích hoạt re-render
-            return [...currentSchedule];
-          }
-          return currentSchedule;
-        });
+        // Cập nhật thời gian hiện tại để kích hoạt re-render
+        setCurrentTime(dayjs());
       }, 10000); // Cập nhật mỗi 10 giây
 
       return () => clearInterval(intervalId); // Dọn dẹp khi unmount
     }
-  }, [selectedDate, schedule]);
+  }, [selectedDate]);
   const handleChannelSelect = (channelId) => {
     if (
       (newScheduleItems.length > 0 || deletedIds.length > 0) &&
@@ -354,6 +343,71 @@ function Schedule() {
       setLoading(false);
     }
   };
+
+  // Kiểm tra user có role ADMIN không
+  const isAdmin = () => {
+    try {
+      return keycloak.hasRealmRole('ADMIN') || keycloak.hasResourceRole('ADMIN');
+    } catch (error) {
+      console.error('Error checking admin role:', error);
+      return false;
+    }
+  };  // Hàm mở modal dừng lịch hiện tại
+  const openStopCurrentModal = (item) => {
+    // Kiểm tra quyền ADMIN
+    if (!isAdmin()) {
+      alert("Chỉ có ADMIN mới được phép dừng chương trình hiện tại!");
+      return;
+    }
+
+    if (item && isItemCurrent(item)) {
+      setCurrentPlayingItem(item);
+      setIsStopModalOpen(true);
+    } else {
+      alert("Không có chương trình nào đang phát!");
+    }
+  };
+  // Hàm xử lý dừng lịch hiện tại
+  const handleStopCurrent = async (playAds) => {
+    if (!currentPlayingItem) return;
+
+    setLoading(true);
+    setError(null);    try {
+      console.log("Stopping current schedule:", {
+        channelId: selectedChannel,
+        scheduleId: currentPlayingItem.id,
+        playAds: playAds,
+      });
+
+      const result = await axios.post(
+        `http://localhost:8080/api/v1/schedule/stop-current`,
+        {
+          channelId: selectedChannel,
+          scheduleId: currentPlayingItem.id,
+          playAds: playAds,
+        }
+      );
+
+      if (result.data.code === 200) {
+        const replacementText = playAds ? "quảng cáo" : "nội dung mặc định";
+        alert(`Đã dừng chương trình "${currentPlayingItem.title}" và chuyển sang phát ${replacementText}!`);
+        
+        // Reset state
+        setCurrentPlayingItem(null);
+        setIsStopModalOpen(false);
+        
+        // Refresh schedule from server
+        fetchScheduleForChannel(selectedChannel, selectedDate);
+      } else {
+        setError(result.data.message || "Không thể dừng chương trình");
+      }
+    } catch (error) {
+      console.error("Error stopping current schedule:", error);
+      setError("Lỗi khi dừng chương trình: " + (error.message || "Không xác định"));
+    } finally {
+      setLoading(false);
+    }
+  };
   const isItemInPast = (item) => {
     const now = dayjs();
     const itemEndTime = dayjs(item.endTime);
@@ -362,7 +416,7 @@ function Schedule() {
 
   // Đổi tên hàm cũ để tránh xung đột
   const checkItemIsCurrent = (item) => {
-    const now = dayjs();
+    const now = currentTime;
     const startTime = dayjs(item.startTime);
     const endTime = dayjs(item.endTime);
     return now.isAfter(startTime) && now.isBefore(endTime);
@@ -429,8 +483,7 @@ function Schedule() {
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl text-white">
               Lịch phát sóng - {dayjs(selectedDate).format("DD/MM/YYYY")}
-            </h2>
-            {!dayjs(selectedDate).isBefore(dayjs().startOf("day")) && (
+            </h2>            {!dayjs(selectedDate).isBefore(dayjs().startOf("day")) && (
               <div className="flex space-x-3">
                 <button
                   onClick={openAddModal}
@@ -533,15 +586,16 @@ function Schedule() {
                             } 
                             transition
                           `}
-                        >
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                        >                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
                             <div>
                               {dayjs(item.startTime).format("HH:mm:ss")} -{" "}
                               {dayjs(item.endTime).format("HH:mm:ss")}
                               {checkItemIsCurrent(item) && (
-                                <span className="ml-2 text-xs bg-red-500 text-white px-2 py-1 rounded">
-                                  Đang chiếu
-                                </span>
+                                <div className="flex items-center mt-1">
+                                  <span className="text-xs bg-red-500 text-white px-2 py-1 rounded animate-pulse">
+                                    🔴 Đang chiếu
+                                  </span>
+                                </div>
                               )}
                             </div>
                           </td>
@@ -562,40 +616,70 @@ function Schedule() {
                                 Chưa có nguồn
                               </span>
                             )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            {isPast || isCurrent ? (
-                              // Chỉ cho phép xem với lịch đã phát hoặc đang phát
-                              <button
-                                onClick={() => openEditModal(item)}
-                                className="text-gray-400 hover:text-gray-300"
-                                title={
-                                  isPast
-                                    ? "Chỉ xem (lịch đã phát)"
-                                    : "Chỉ xem (đang phát)"
-                                }
-                              >
-                                <FaEye />
-                              </button>
-                            ) : (
-                              // Cho phép sửa và xóa với lịch chưa phát
-                              <>
+                          </td>                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <div className="flex justify-end items-center space-x-2">
+                              {isCurrent ? (
+                                // Nút dừng cho lịch đang phát
+                                <>
+                                  <button
+                                    onClick={() => openEditModal(item)}
+                                    className="text-gray-400 hover:text-gray-300"
+                                    title="Chỉ xem (đang phát)"
+                                  >
+                                    <FaEye />
+                                  </button>
+                                  {isAdmin() ? (
+                                    <button
+                                      onClick={() => openStopCurrentModal(item)}
+                                      className="text-red-400 hover:text-red-300"
+                                      title="Dừng chương trình đang phát"
+                                    >
+                                      <FaStop />
+                                    </button>
+                                  ) : (
+                                    <div className="relative group">
+                                      <button
+                                        disabled
+                                        className="text-gray-500 cursor-not-allowed"
+                                        title="Chỉ ADMIN mới có thể dừng chương trình"
+                                      >
+                                        <FaStop />
+                                      </button>
+                                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-700 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                                        Chỉ ADMIN mới có thể dừng
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
+                              ) : isPast ? (
+                                // Chỉ cho phép xem với lịch đã phát
                                 <button
                                   onClick={() => openEditModal(item)}
-                                  className="text-indigo-400 hover:text-indigo-300 mr-4"
-                                  title="Chỉnh sửa"
+                                  className="text-gray-400 hover:text-gray-300"
+                                  title="Chỉ xem (lịch đã phát)"
                                 >
-                                  <FaEdit />
+                                  <FaEye />
                                 </button>
-                                <button
-                                  onClick={() => handleDelete(item.id)}
-                                  className="text-red-400 hover:text-red-300"
-                                  title="Xóa"
-                                >
-                                  <FaTrashAlt />
-                                </button>
-                              </>
-                            )}
+                              ) : (
+                                // Cho phép sửa và xóa với lịch chưa phát
+                                <>
+                                  <button
+                                    onClick={() => openEditModal(item)}
+                                    className="text-indigo-400 hover:text-indigo-300"
+                                    title="Chỉnh sửa"
+                                  >
+                                    <FaEdit />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDelete(item.id)}
+                                    className="text-red-400 hover:text-red-300"
+                                    title="Xóa"
+                                  >
+                                    <FaTrashAlt />
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -620,9 +704,7 @@ function Schedule() {
             </div>
           )}
         </div>
-      </div>
-
-      {/* Sử dụng component ScheduleFormModal */}
+      </div>      {/* Sử dụng component ScheduleFormModal */}
       <ScheduleFormModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -632,6 +714,13 @@ function Schedule() {
         isEditing={isEditing}
         currentItem={currentItem}
         isItemInPast={isItemInPast}
+      />      {/* Modal dừng lịch hiện tại */}
+      <StopCurrentModal
+        isOpen={isStopModalOpen}
+        onClose={() => setIsStopModalOpen(false)}
+        onConfirm={handleStopCurrent}
+        currentItem={currentPlayingItem}
+        loading={loading}
       />
     </div>
   );
