@@ -4,7 +4,7 @@ const Footer = () => {
       <div className="container mx-auto px-6">
         <div className="flex flex-col md:flex-row justify-between">
           <div className="mb-6 md:mb-0">
-            <h2 className="text-2xl font-bold text-indigo-400 mb-4">TVNext</h2>
+            <h2 className="text-2xl font-bold text-indigo-400 mb-4">FAST360</h2>
             <p className="text-gray-400">Nền tảng phát trực tuyến hàng đầu</p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-8">
@@ -87,7 +87,7 @@ const Footer = () => {
         </div>
         <div className="mt-8 border-t border-gray-700 pt-6 flex flex-col md:flex-row justify-between items-center">
           <p className="text-gray-400 text-sm">
-            © 2025 TVNext. All rights reserved.
+            © 2025 FAST360 All rights reserved.
           </p>
           <div className="mt-4 md:mt-0 flex space-x-6">
             <a href="#" className="text-gray-400 hover:text-indigo-400 text-sm">

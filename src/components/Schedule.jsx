@@ -31,7 +31,8 @@ function Schedule() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);  const [newScheduleItems, setNewScheduleItems] = useState([]);
+  const [error, setError] = useState(null);
+  const [newScheduleItems, setNewScheduleItems] = useState([]);
   const [deletedIds, setDeletedIds] = useState([]); // Theo dõi các ID đã bị xóa
   const [isStopModalOpen, setIsStopModalOpen] = useState(false);
   const [currentPlayingItem, setCurrentPlayingItem] = useState(null);
@@ -63,7 +64,7 @@ function Schedule() {
     if (selectedChannel && selectedDate) {
       fetchScheduleForChannel(selectedChannel, selectedDate);
     }
-  }, [selectedChannel, selectedDate]);  // Thêm useEffect để cập nhật trạng thái "Đang chiếu" mỗi 10 giây
+  }, [selectedChannel, selectedDate]); // Thêm useEffect để cập nhật trạng thái "Đang chiếu" mỗi 10 giây
   useEffect(() => {
     // Chỉ thiết lập polling nếu đang xem lịch của ngày hiện tại
     if (dayjs(selectedDate).isSame(dayjs(), "day")) {
@@ -318,6 +319,12 @@ function Schedule() {
         return scheduleItem;
       });
 
+      console.log("Data being sent to server:", {
+        channelId: selectedChannel,
+        scheduleList: scheduleList,
+        deletedIds: deletedIds,
+      });
+
       const result = await axios.post(
         `http://localhost:8080/api/v1/schedule/sync`,
         {
@@ -347,12 +354,14 @@ function Schedule() {
   // Kiểm tra user có role ADMIN không
   const isAdmin = () => {
     try {
-      return keycloak.hasRealmRole('ADMIN') || keycloak.hasResourceRole('ADMIN');
+      return (
+        keycloak.hasRealmRole("ADMIN") || keycloak.hasResourceRole("ADMIN")
+      );
     } catch (error) {
-      console.error('Error checking admin role:', error);
+      console.error("Error checking admin role:", error);
       return false;
     }
-  };  // Hàm mở modal dừng lịch hiện tại
+  }; // Hàm mở modal dừng lịch hiện tại
   const openStopCurrentModal = (item) => {
     // Kiểm tra quyền ADMIN
     if (!isAdmin()) {
@@ -372,7 +381,8 @@ function Schedule() {
     if (!currentPlayingItem) return;
 
     setLoading(true);
-    setError(null);    try {
+    setError(null);
+    try {
       console.log("Stopping current schedule:", {
         channelId: selectedChannel,
         scheduleId: currentPlayingItem.id,
@@ -390,12 +400,14 @@ function Schedule() {
 
       if (result.data.code === 200) {
         const replacementText = playAds ? "quảng cáo" : "nội dung mặc định";
-        alert(`Đã dừng chương trình "${currentPlayingItem.title}" và chuyển sang phát ${replacementText}!`);
-        
+        alert(
+          `Đã dừng chương trình "${currentPlayingItem.title}" và chuyển sang phát ${replacementText}!`
+        );
+
         // Reset state
         setCurrentPlayingItem(null);
         setIsStopModalOpen(false);
-        
+
         // Refresh schedule from server
         fetchScheduleForChannel(selectedChannel, selectedDate);
       } else {
@@ -403,7 +415,9 @@ function Schedule() {
       }
     } catch (error) {
       console.error("Error stopping current schedule:", error);
-      setError("Lỗi khi dừng chương trình: " + (error.message || "Không xác định"));
+      setError(
+        "Lỗi khi dừng chương trình: " + (error.message || "Không xác định")
+      );
     } finally {
       setLoading(false);
     }
@@ -483,7 +497,8 @@ function Schedule() {
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl text-white">
               Lịch phát sóng - {dayjs(selectedDate).format("DD/MM/YYYY")}
-            </h2>            {!dayjs(selectedDate).isBefore(dayjs().startOf("day")) && (
+            </h2>
+            {!dayjs(selectedDate).isBefore(dayjs().startOf("day")) && (
               <div className="flex space-x-3">
                 <button
                   onClick={openAddModal}
@@ -586,7 +601,8 @@ function Schedule() {
                             } 
                             transition
                           `}
-                        >                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                        >
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
                             <div>
                               {dayjs(item.startTime).format("HH:mm:ss")} -{" "}
                               {dayjs(item.endTime).format("HH:mm:ss")}
@@ -616,7 +632,8 @@ function Schedule() {
                                 Chưa có nguồn
                               </span>
                             )}
-                          </td>                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <div className="flex justify-end items-center space-x-2">
                               {isCurrent ? (
                                 // Nút dừng cho lịch đang phát
@@ -704,7 +721,8 @@ function Schedule() {
             </div>
           )}
         </div>
-      </div>      {/* Sử dụng component ScheduleFormModal */}
+      </div>
+      {/* Sử dụng component ScheduleFormModal */}
       <ScheduleFormModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -714,7 +732,8 @@ function Schedule() {
         isEditing={isEditing}
         currentItem={currentItem}
         isItemInPast={isItemInPast}
-      />      {/* Modal dừng lịch hiện tại */}
+      />
+      {/* Modal dừng lịch hiện tại */}
       <StopCurrentModal
         isOpen={isStopModalOpen}
         onClose={() => setIsStopModalOpen(false)}
