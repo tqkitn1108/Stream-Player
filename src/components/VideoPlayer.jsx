@@ -9,6 +9,9 @@ import Navbar from "./Navbar";
 import dayjs from "dayjs";
 import 'dayjs/locale/vi';
 
+const API_BASE_URL =
+  `${import.meta.env.VITE_BACKEND_URL}/api/v1` ||
+  "http://34.126.102.97:8080/api/v1";
 // Cấu hình dayjs
 dayjs.locale('vi');
 
@@ -25,7 +28,7 @@ function VideoPlayer() {
 
   const isLive = !!channelId;
   const hlsUrl = isLive
-    ? `https://fast-api-gstv.onrender.com/${channelId}/master.m3u8`
+    ? `${import.meta.env.VITE_BACKEND_URL}/hls/${channelId}/master.m3u8`
     : videoId ? `http://167.172.78.132:8080/vod/${videoId}.m3u8` : "";
   useEffect(() => {
     // Fetch schedule for live channel
@@ -55,8 +58,8 @@ function VideoPlayer() {
       const today = dayjs().startOf('day');
       const startTime = today.format('YYYY-MM-DDT00:00:00');
       const endTime = today.format('YYYY-MM-DDT23:59:59');
-      
-      const response = await axios.get(`https://fast-api-gstv.onrender.com/api/v1/schedule`, {
+
+      const response = await axios.get(`${API_BASE_URL}/schedule`, {
         params: {
           channelId: 1,
           startTime: startTime,

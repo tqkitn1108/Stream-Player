@@ -4,10 +4,11 @@ import adBanner from "../assets/ad.png";
 
 /**
  * Component hiển thị thumbnail với lazy loading
- * Tự động generate thumbnail từ video URL
+ * Ưu tiên sử dụng thumbnailUrl trước, sau đó generate từ video URL
  */
 const ThumbnailImage = ({
   videoUrl,
+  thumbnailUrl,
   alt,
   className = "",
   fallbackSrc = adBanner,
@@ -40,28 +41,33 @@ const ThumbnailImage = ({
     }
 
     return () => observerRef.current?.disconnect();
-  }, [lazy, isInView]); // Load thumbnail logic
+  }, [lazy, isInView]);  // Load thumbnail logic
   useEffect(() => {
     if (!isInView) return;
 
-    console.log("🖼️ ThumbnailImage - Loading thumbnail from video:", {
+    console.log("🖼️ ThumbnailImage - Loading thumbnail:", {
+      thumbnailUrl,
       videoUrl,
       alt,
       isVideoUrl: videoUrl ? isVideoUrl(videoUrl) : false,
-    });
-
-    const loadThumbnail = async () => {
+    });    const loadThumbnail = async () => {
       setIsLoading(true);
       setHasError(false);
 
       try {
-        if (videoUrl && isVideoUrl(videoUrl)) {
+        if (thumbnailUrl) {
+          console.log("🖼️ Using provided thumbnail URL:", thumbnailUrl);
+          // Ưu tiên dùng thumbnail URL nếu có - không cần generate
+          setImageSrc(thumbnailUrl);
+          setIsLoading(false);
+          return; // Thoát sớm, không cần generate từ video
+        } else if (videoUrl && isVideoUrl(videoUrl)) {
           console.log("🎥 Generating thumbnail from video:", videoUrl);
-          // Generate từ video
+          // Chỉ generate từ video khi không có thumbnail URL
           await tryGenerateFromVideo();
         } else {
-          console.log("🚫 No valid video URL, using fallback");
-          // Không có video URL hợp lệ, dùng fallback
+          console.log("🚫 No valid thumbnail or video URL, using fallback");
+          // Không có thumbnail hay video URL hợp lệ, dùng fallback
           setImageSrc(fallbackSrc);
           setIsLoading(false);
         }
@@ -101,24 +107,45 @@ const ThumbnailImage = ({
         setHasError(true);
         setIsLoading(false);
       }
-    };
-    loadThumbnail();
-  }, [videoUrl, fallbackSrc, timeOffset, isInView]);
-
+    };    loadThumbnail();
+  }, [videoUrl, thumbnailUrl, fallbackSrc, timeOffset, isInView]);
   const handleImageError = () => {
-    if (!hasError && videoUrl && isVideoUrl(videoUrl)) {
-      // Retry với video nếu chưa thử
-      setHasError(true);
-      setIsLoading(true);
-      getCachedVideoThumbnail(videoUrl, timeOffset)
-        .then((thumbnail) => {
-          setImageSrc(thumbnail);
-          setIsLoading(false);
-        })
-        .catch(() => {
+    if (!hasError) {
+      if (thumbnailUrl && imageSrc === thumbnailUrl) {
+        // Nếu thumbnail URL bị lỗi, thử generate từ video
+        setHasError(true);
+        setIsLoading(true);
+        if (videoUrl && isVideoUrl(videoUrl)) {
+          getCachedVideoThumbnail(videoUrl, timeOffset)
+            .then((thumbnail) => {
+              setImageSrc(thumbnail);
+              setIsLoading(false);
+            })
+            .catch(() => {
+              setImageSrc(fallbackSrc);
+              setIsLoading(false);
+            });
+        } else {
           setImageSrc(fallbackSrc);
           setIsLoading(false);
-        });
+        }
+      } else if (videoUrl && isVideoUrl(videoUrl)) {
+        // Retry với video nếu chưa thử
+        setHasError(true);
+        setIsLoading(true);
+        getCachedVideoThumbnail(videoUrl, timeOffset)
+          .then((thumbnail) => {
+            setImageSrc(thumbnail);
+            setIsLoading(false);
+          })
+          .catch(() => {
+            setImageSrc(fallbackSrc);
+            setIsLoading(false);
+          });
+      } else {
+        setImageSrc(fallbackSrc);
+        setIsLoading(false);
+      }
     } else {
       setImageSrc(fallbackSrc);
       setIsLoading(false);

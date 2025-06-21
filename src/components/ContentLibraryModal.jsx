@@ -1,5 +1,6 @@
 import React from "react";
 import { FaCheck, FaTimes } from "react-icons/fa";
+import ThumbnailImage from "./ThumbnailImage";
 
 function ContentLibraryModal({
   isOpen,
@@ -31,8 +32,7 @@ function ContentLibraryModal({
               <div className="animate-spin inline-block w-8 h-8 border-2 border-current border-t-transparent rounded-full mb-2"></div>
               <p>Đang tải danh sách nội dung...</p>
             </div>
-          ) : contentLibrary.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3">
+          ) : contentLibrary.length > 0 ? (            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3">
               {contentLibrary.map((content) => (
                 <div
                   key={content.id}
@@ -43,14 +43,35 @@ function ContentLibraryModal({
                       : "border-gray-600 hover:bg-gray-650"
                   } rounded cursor-pointer transition`}
                 >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-medium text-white">
+                  <div className="flex items-start space-x-3">
+                    {/* Thumbnail */}
+                    <div className="w-16 h-12 bg-gray-600 rounded overflow-hidden flex-shrink-0">
+                      <ThumbnailImage 
+                        videoUrl={content.inputUrl || content.url} 
+                        thumbnailUrl={content.thumbnail}
+                        alt={content.title}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>                    {/* Content info */}
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-white line-clamp-2 leading-relaxed">
                         {content.title}
                       </h4>
+                      {content.description && (
+                        <p className="text-gray-400 text-xs mt-1 line-clamp-2">
+                          {content.description}
+                        </p>
+                      )}
+                      {content.duration && (
+                        <p className="text-gray-500 text-xs mt-1">
+                          Thời lượng: {Math.floor(content.duration / 60)}:{(content.duration % 60).toString().padStart(2, '0')}
+                        </p>
+                      )}
                     </div>
+                    
+                    {/* Selection indicator */}
                     {selectedContent && selectedContent.id === content.id && (
-                      <FaCheck className="text-green-500" />
+                      <FaCheck className="text-green-500 flex-shrink-0" />
                     )}
                   </div>
                 </div>

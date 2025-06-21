@@ -1,6 +1,23 @@
 @import "tailwindcss";
-@custom-variant dark (&:where(.dark, .dark *));
 
 body {
-  @apply bg-black text-white;
+  background-color: #000000;
+  color: #ffffff;
+}
+
+/* Custom utilities for line clamping */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { FaUserCircle, FaSearch, FaCalendarAlt, FaHome, FaFilm, FaStream, FaUpload, FaSignOutAlt, FaAd } from "react-icons/fa";
+import { FaUserCircle, FaSearch, FaCalendarAlt, FaHome, FaFilm, FaStream, FaUpload, FaSignOutAlt, FaAd, FaPlay, FaChevronDown, FaCog } from "react-icons/fa";
 import { login, logout, isAuthenticated, getUser, hasRole } from "../services/keycloak";
 
 function Navbar() {
   const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [managementMenuOpen, setManagementMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [authenticated, setAuthenticated] = useState(isAuthenticated());
   // Kiểm tra người dùng có quyền ADMIN hoặc EDITOR
@@ -72,17 +73,19 @@ function Navbar() {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-
   // Đóng menu khi click ra ngoài
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (userMenuOpen && !event.target.closest('.user-menu-container')) {
         setUserMenuOpen(false);
       }
+      if (managementMenuOpen && !event.target.closest('.management-menu-container')) {
+        setManagementMenuOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [userMenuOpen]);
+  }, [userMenuOpen, managementMenuOpen]);
 
   const isActive = (path) => {
     return location.pathname === path;
@@ -96,9 +99,16 @@ function Navbar() {
     logout({ redirectUri: window.location.origin });
     setUserMenuOpen(false);
   };
-
   const toggleUserMenu = () => {
     setUserMenuOpen(!userMenuOpen);
+  };
+
+  const toggleManagementMenu = () => {
+    setManagementMenuOpen(!managementMenuOpen);
+  };
+
+  const isManagementActive = () => {
+    return location.pathname === '/video-management' || location.pathname === '/ads';
   };
 
   return (
@@ -133,8 +143,7 @@ function Navbar() {
               <FaFilm className="text-lg" />
               <span>Videos</span>
             </Link>
-            
-            {/* Chỉ hiển thị menu Lịch phát sóng và Upload Video khi là ADMIN hoặc EDITOR */}
+              {/* Chỉ hiển thị menu Lịch phát sóng và Upload Video khi là ADMIN hoặc EDITOR */}
             {isAdminOrEditor && (
               <>
                 <Link
@@ -143,7 +152,56 @@ function Navbar() {
                 >
                   <FaCalendarAlt className="text-lg" />
                   <span>Lịch phát sóng</span>
-                </Link>                <Link
+                </Link>
+                
+                {/* Dropdown menu cho Quản lý */}
+                {(isAdminOrEditor || isAdminOrModerator) && (
+                  <div className="relative management-menu-container">
+                    <button
+                      onClick={toggleManagementMenu}
+                      onMouseEnter={() => setManagementMenuOpen(true)}
+                      className={`flex items-center space-x-1 text-sm font-medium transition-colors ${
+                        isManagementActive() 
+                          ? 'text-indigo-400 border-b-2 border-indigo-400 pb-1' 
+                          : 'text-gray-300 hover:text-white'
+                      }`}
+                    >
+                      <FaCog className="text-lg" />
+                      <span>Quản lý</span>
+                      <FaChevronDown className="text-xs" />
+                    </button>
+                    
+                    {managementMenuOpen && (
+                      <div 
+                        className="absolute top-full left-0 mt-2 w-48 bg-gray-800 rounded-md shadow-lg py-1 z-50"
+                        onMouseLeave={() => setManagementMenuOpen(false)}
+                      >
+                        {isAdminOrEditor && (
+                          <Link
+                            to="/video-management"
+                            className="flex items-center px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+                            onClick={() => setManagementMenuOpen(false)}
+                          >
+                            <FaPlay className="mr-2 text-lg" />
+                            Kho nội dung
+                          </Link>
+                        )}
+                        {isAdminOrModerator && (
+                          <Link
+                            to="/ads"
+                            className="flex items-center px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+                            onClick={() => setManagementMenuOpen(false)}
+                          >
+                            <FaAd className="mr-2 text-lg" />
+                            Quản lý quảng cáo
+                          </Link>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                <Link
                   to="/upload"
                   className={`flex items-center space-x-1 text-sm font-medium transition-colors ${isActive('/upload') ? 'text-indigo-400 border-b-2 border-indigo-400 pb-1' : 'text-gray-300 hover:text-white'}`}
                 >
@@ -151,17 +209,6 @@ function Navbar() {
                   <span>Upload Video</span>
                 </Link>
               </>
-            )}
-            
-            {/* Chỉ hiển thị menu Quản lý quảng cáo khi là ADMIN hoặc MODERATOR */}
-            {isAdminOrModerator && (
-              <Link
-                to="/ads"
-                className={`flex items-center space-x-1 text-sm font-medium transition-colors ${isActive('/ads') ? 'text-indigo-400 border-b-2 border-indigo-400 pb-1' : 'text-gray-300 hover:text-white'}`}
-              >
-                <FaAd className="text-lg" />
-                <span>Quản lý quảng cáo</span>
-              </Link>
             )}
           </div>
 

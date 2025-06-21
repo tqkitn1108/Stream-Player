@@ -5,6 +5,7 @@ import VideoPlayer from "./components/VideoPlayer";
 import VideoUpload from "./components/VideoUpload";
 import Schedule from "./components/Schedule";
 import AdManagement from "./components/AdManagement";
+import VideoManagement from "./components/VideoManagement";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { initKeycloak, isAuthenticated } from "./services/keycloak";
 
@@ -78,6 +79,16 @@ function App() {
           element={
             <ProtectedRoute requiredRoles={['ADMIN', 'EDITOR']}>
               <Schedule />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* Route quản lý kho nội dung - chỉ ADMIN và EDITOR mới truy cập được */}
+        <Route 
+          path="/video-management" 
+          element={
+            <ProtectedRoute requiredRoles={['ADMIN', 'EDITOR']}>
+              <VideoManagement />
             </ProtectedRoute>
           } 
         />
