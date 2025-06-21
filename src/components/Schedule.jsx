@@ -21,6 +21,10 @@ import dayjs from "dayjs";
 // Cấu hình dayjs
 dayjs.locale("vi");
 
+const API_BASE_URL =
+  `${import.meta.env.VITE_BACKEND_URL}/api/v1` ||
+  "http://34.126.102.97:8080/api/v1";
+
 function Schedule() {
   const [selectedChannel, setSelectedChannel] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -111,18 +115,15 @@ function Schedule() {
       const startTime = formatDateForAPI(date); // 00:00:00
       const endTime = formatDateForAPI(date, true); // 23:59:59
 
-      const response = await axios.get(
-        `https://fast-api-gstv.onrender.com/api/v1/schedule`,
-        {
-          params: {
-            channelId: channelId,
-            startTime: startTime,
-            endTime: endTime,
-            page: 0,
-            size: 100, // Lấy nhiều dữ liệu hơn để hiển thị đầy đủ lịch trong ngày
-          },
-        }
-      );
+      const response = await axios.get(`${API_BASE_URL}/schedule`, {
+        params: {
+          channelId: channelId,
+          startTime: startTime,
+          endTime: endTime,
+          page: 0,
+          size: 100, // Lấy nhiều dữ liệu hơn để hiển thị đầy đủ lịch trong ngày
+        },
+      });
       if (response.data.code === 200) {
         setSchedule(response.data.data || []);
         setOriginalSchedule(
@@ -172,6 +173,7 @@ function Schedule() {
       endTime: endDateTime.format("YYYY-MM-DDTHH:mm:ss"),
       title: "",
       videoPath: "", // Để hỗ trợ nhập URL
+      sourceLive: "", // Để hỗ trợ nhập RTMP link
       labels: [], // Mảng labels trống
       ads: [], // Mảng quảng cáo trống
     });
@@ -198,10 +200,12 @@ function Schedule() {
       labels: item.labels || [],
       ads: item.ads || [],
     };
-
     if (item.videoId) {
       // Nội dung từ kho
       formData.videoId = item.videoId;
+    } else if (item.sourceLive) {
+      // Nội dung trực tiếp
+      formData.sourceLive = item.sourceLive;
     } else {
       // Nội dung từ URL
       formData.videoPath = item.video || item.videoPath || "";
@@ -241,11 +245,9 @@ function Schedule() {
         isNewItem: true, // Đánh dấu đây là item mới
         labels: data.labels || [],
         ads: data.ads || [],
-      };
-
-      // Thêm item mới vào schedule và newScheduleItems
+      }; // Thêm item mới vào schedule và newScheduleItems
       setSchedule([...updatedSchedule, newItem]);
-      setNewScheduleItems([...newScheduleItems, newItem]);
+      setNewScheduleItems((prev) => [...prev, newItem]);
     } else {
       // Create new item locally
       const newItem = {
@@ -256,13 +258,11 @@ function Schedule() {
         isNewItem: true, // Đánh dấu đây là item mới
         labels: data.labels || [],
         ads: data.ads || [],
-      };
-
-      // Thêm vào danh sách lịch chung
+      }; // Thêm vào danh sách lịch chung
       setSchedule([...schedule, newItem]);
 
       // Thêm vào danh sách lịch mới
-      setNewScheduleItems([...newScheduleItems, newItem]);
+      setNewScheduleItems((prev) => [...prev, newItem]);
     }
     setIsModalOpen(false);
   };
@@ -307,11 +307,11 @@ function Schedule() {
           endTime: item.endTime,
           labels: item.labels || [], // Sử dụng labels đúng từ item
           ads: item.ads || [], // Thêm danh sách quảng cáo
-        };
-
-        // Xử lý video/videoId
+        }; // Xử lý video/videoId/sourceLive
         if (item.videoId) {
           scheduleItem.videoId = item.videoId;
+        } else if (item.sourceLive) {
+          scheduleItem.sourceLive = item.sourceLive;
         } else {
           scheduleItem.video = item.video || item.videoPath || "";
         }
@@ -325,14 +325,11 @@ function Schedule() {
         deletedIds: deletedIds,
       });
 
-      const result = await axios.post(
-        `http://localhost:8080/api/v1/schedule/sync`,
-        {
-          channelId: selectedChannel,
-          scheduleList: scheduleList,
-          deletedIds: deletedIds, // Thêm trường deletedIds
-        }
-      );
+      const result = await axios.post(`${API_BASE_URL}/schedule/sync`, {
+        channelId: selectedChannel,
+        scheduleList: scheduleList,
+        deletedIds: deletedIds, // Thêm trường deletedIds
+      });
       if (result.data.code === 200) {
         alert("Lưu lịch phát sóng thành công!");
         // Reset danh sách lịch mới và deletedIds sau khi lưu thành công
@@ -389,14 +386,11 @@ function Schedule() {
         playAds: playAds,
       });
 
-      const result = await axios.post(
-        `http://localhost:8080/api/v1/schedule/stop-current`,
-        {
-          channelId: selectedChannel,
-          scheduleId: currentPlayingItem.id,
-          playAds: playAds,
-        }
-      );
+      const result = await axios.post(`${API_BASE_URL}/schedule/stop-current`, {
+        channelId: selectedChannel,
+        scheduleId: currentPlayingItem.id,
+        playAds: playAds,
+      });
 
       if (result.data.code === 200) {
         const replacementText = playAds ? "quảng cáo" : "nội dung mặc định";
@@ -623,6 +617,10 @@ function Schedule() {
                               <span className="px-2 py-1 bg-green-900 bg-opacity-50 text-green-300 rounded">
                                 ID: {item.videoId}
                               </span>
+                            ) : item.sourceLive ? (
+                              <span className="px-2 py-1 bg-red-900 bg-opacity-50 text-red-300 rounded flex items-center">
+                                🔴 Live: {item.sourceLive}
+                              </span>
                             ) : item.video || item.videoPath ? (
                               <span className="text-gray-300">
                                 {item.video || item.videoPath}
@@ -636,7 +634,6 @@ function Schedule() {
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <div className="flex justify-end items-center space-x-2">
                               {isCurrent ? (
-                                // Nút dừng cho lịch đang phát
                                 <>
                                   <button
                                     onClick={() => openEditModal(item)}
@@ -678,7 +675,6 @@ function Schedule() {
                                   <FaEye />
                                 </button>
                               ) : (
-                                // Cho phép sửa và xóa với lịch chưa phát
                                 <>
                                   <button
                                     onClick={() => openEditModal(item)}

@@ -8,6 +8,7 @@ import {
   FaAd,
   FaTrashAlt,
   FaClock,
+  FaBroadcastTower,
 } from "react-icons/fa";
 import { useForm } from "react-hook-form";
 import axios from "axios";
@@ -17,7 +18,7 @@ import AdsSelectionModal from "./AdsSelectionModal";
 
 const API_BASE_URL =
   `${import.meta.env.VITE_BACKEND_URL}/api/v1` ||
-  "http://localhost:8080/api/v1";
+  "http://34.126.102.97:8080/api/v1";
 
 function ScheduleFormModal({
   isOpen,
@@ -30,9 +31,8 @@ function ScheduleFormModal({
 }) {
   if (!isOpen) return null;
   const [showLabel, setShowLabel] = useState(true);
-
   // Thêm state cho content selection
-  const [contentSelectionType, setContentSelectionType] = useState("url"); // "url" hoặc "library"
+  const [contentSelectionType, setContentSelectionType] = useState("url"); // "url", "library", hoặc "live"
   const [contentLibrary, setContentLibrary] = useState([]);
   const [loadingContent, setLoadingContent] = useState(false);
   const [selectedContent, setSelectedContent] = useState(null);
@@ -61,6 +61,22 @@ function ScheduleFormModal({
 
   // Lấy giá trị title từ form để tạo label tự động
   const currentTitle = watch("title");
+  // Tự động detect content type khi form data thay đổi
+  useEffect(() => {
+    if (initialFormData.videoId) {
+      setContentSelectionType("library");
+      // Set selected content nếu có videoId
+      setSelectedContent({
+        id: initialFormData.videoId,
+        title: initialFormData.title || "Nội dung từ kho"
+      });
+    } else if (initialFormData.sourceLive) {
+      setContentSelectionType("live");
+    } else if (initialFormData.videoPath || initialFormData.video) {
+      setContentSelectionType("url");
+    }
+  }, [initialFormData]);
+
   // Fetch nội dung từ kho khi mở popup thư viện
   useEffect(() => {
     if (showContentLibraryPopup) {
@@ -224,22 +240,37 @@ function ScheduleFormModal({
   const removeAd = (index) => {
     const newAds = [...scheduleAds];
     newAds.splice(index, 1);
-    setScheduleAds(newAds);
-  };
-  // Xử lý submit form với việc thêm/xóa label và quảng cáo
+    setScheduleAds(newAds);  };  // Xử lý submit form với việc thêm/xóa label và quảng cáo
   const onFormSubmit = (formData) => {
+    // Validation cho content selection
+    if (contentSelectionType === "library" && !selectedContent) {
+      alert("Vui lòng chọn nội dung từ kho");
+      return;
+    }
+    
+    if (contentSelectionType === "url" && !formData.videoPath) {
+      alert("Vui lòng nhập URL video");
+      return;
+    }
+    
+    if (contentSelectionType === "live" && !formData.sourceLive) {
+      alert("Vui lòng nhập link RTMP");
+      return;
+    }
+
     // Clone data để tránh tham chiếu và xóa các trường không cần thiết
     const data = {
       title: formData.title,
       startTime: formData.startTime,
-      endTime: formData.endTime,
-    };
+      endTime: formData.endTime,    };
 
     // Xử lý video dựa trên loại lựa chọn
     if (contentSelectionType === "url") {
       data.video = formData.videoPath || ""; // Gán URL vào trường video
     } else if (contentSelectionType === "library" && selectedContent) {
       data.videoId = selectedContent.id; // Gán ID từ kho vào trường videoId
+    } else if (contentSelectionType === "live") {
+      data.sourceLive = formData.sourceLive || ""; // Gán RTMP link vào trường sourceLive
     }
 
     // Xử lý labels
@@ -261,9 +292,7 @@ function ScheduleFormModal({
       adId: ad.adId,
       startTime: ad.startTime,
       endTime: ad.endTime,
-    }));
-
-    // Gọi onSubmit từ component cha với data đã được cập nhật
+    }));    // Gọi onSubmit từ component cha với data đã được cập nhật
     onSubmit(data);
   };
 
@@ -338,8 +367,7 @@ function ScheduleFormModal({
           </div>
           <div className="space-y-2 mt-1">
             <div className="block text-gray-200 mb-2">Chọn nội dung</div>
-            <div className="space-y-3">
-              {/* Toggle content selection type */}
+            <div className="space-y-3">              {/* Toggle content selection type */}
               <div className="flex border border-gray-600 rounded overflow-hidden mb-3">
                 <button
                   type="button"
@@ -370,6 +398,22 @@ function ScheduleFormModal({
                   <FaDatabase className="mr-2" />
                   Kho nội dung
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setContentSelectionType("live");
+                    setSelectedContent(null);
+                  }}
+                  className={`flex-1 py-2 px-3 flex items-center justify-center ${
+                    contentSelectionType === "live"
+                      ? "bg-indigo-600 text-white"
+                      : "bg-gray-700 text-gray-300"
+                  } transition-colors`}
+                  disabled={isDisabled}
+                >
+                  <FaBroadcastTower className="mr-2" />
+                  Trực tiếp
+                </button>
               </div>
               {/* URL Input */}
               {contentSelectionType === "url" && (
@@ -387,6 +431,25 @@ function ScheduleFormModal({
                     })}
                     className="w-full px-3 py-3 bg-gray-700 text-white focus:outline-none border-none"
                     placeholder="http://example.com/video.mp4"
+                    disabled={isDisabled}
+                  />                </div>
+              )}
+              {/* Live Stream Input */}
+              {contentSelectionType === "live" && (
+                <div className="flex items-center overflow-hidden border border-gray-600 rounded bg-gray-700 focus-within:ring-2 focus-within:ring-indigo-500">
+                  <span className="pl-3 text-gray-400">
+                    <FaBroadcastTower />
+                  </span>
+                  <input
+                    type="text"
+                    {...register("sourceLive", {
+                      required:
+                        contentSelectionType === "live"
+                          ? "Link RTMP là bắt buộc"
+                          : false,
+                    })}
+                    className="w-full px-3 py-3 bg-gray-700 text-white focus:outline-none border-none"
+                    placeholder="rtmp://example.com/live/stream_key"
                     disabled={isDisabled}
                   />
                 </div>
@@ -438,10 +501,14 @@ function ScheduleFormModal({
               {/* Trường ẩn cho videoId khi chọn từ kho nội dung */}
               {contentSelectionType === "library" && (
                 <input type="hidden" {...register("videoId")} />
-              )}
-              {errors.videoPath && contentSelectionType === "url" && (
+              )}              {errors.videoPath && contentSelectionType === "url" && (
                 <span className="text-red-400 text-sm">
                   {errors.videoPath.message}
+                </span>
+              )}
+              {errors.sourceLive && contentSelectionType === "live" && (
+                <span className="text-red-400 text-sm">
+                  {errors.sourceLive.message}
                 </span>
               )}
               {!selectedContent && contentSelectionType === "library" && (

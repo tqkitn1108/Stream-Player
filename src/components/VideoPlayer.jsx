@@ -56,7 +56,7 @@ function VideoPlayer() {
       const startTime = today.format('YYYY-MM-DDT00:00:00');
       const endTime = today.format('YYYY-MM-DDT23:59:59');
       
-      const response = await axios.get(`http://localhost:8080/api/v1/schedule`, {
+      const response = await axios.get(`https://fast-api-gstv.onrender.com/api/v1/schedule`, {
         params: {
           channelId: 1,
           startTime: startTime,
