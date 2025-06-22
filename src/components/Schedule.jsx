@@ -21,9 +21,10 @@ import dayjs from "dayjs";
 // Cấu hình dayjs
 dayjs.locale("vi");
 
+// API URL constants
 const API_BASE_URL =
   `${import.meta.env.VITE_BACKEND_URL}/api/v1` ||
-  "http://34.126.102.97:8080/api/v1";
+  "http://localhost:8080/api/v1";
 
 function Schedule() {
   const [selectedChannel, setSelectedChannel] = useState(null);
@@ -41,6 +42,10 @@ function Schedule() {
   const [isStopModalOpen, setIsStopModalOpen] = useState(false);
   const [currentPlayingItem, setCurrentPlayingItem] = useState(null);
   const [currentTime, setCurrentTime] = useState(dayjs()); // Theo dõi thời gian hiện tại
+  const [selectedVodSchedules, setSelectedVodSchedules] = useState(new Set()); // Theo dõi lịch được chọn để cắt VOD
+  const [vodMapping, setVodMapping] = useState(new Map()); // Mapping giữa scheduleId và vodId
+  const [existingVods, setExistingVods] = useState([]); // Danh sách VOD đã có từ server
+  const [channels, setChannels] = useState([]); // Danh sách kênh từ API
 
   // Form state
   const [formData, setFormData] = useState({
@@ -49,20 +54,35 @@ function Schedule() {
     title: "",
     videoPath: "",
   });
+  // Fetch channels từ API
+  useEffect(() => {
+    const fetchChannels = async () => {
+      try {
+        const response = await axios.get(`${API_BASE_URL}/channels`);
+        if (response.data.code === 200) {
+          const channelsData = response.data.data || [];
+          // Map channels data với format phù hợp cho Schedule
+          const mappedChannels = channelsData.map((channel) => ({
+            id: channel.id,
+            name: channel.channelName,
+          }));
+          setChannels(mappedChannels);
+        } else {
+          console.error("Error fetching channels:", response.data.message);
+        }
+      } catch (error) {
+        console.error("Error fetching channels:", error);
+      }
+    };
 
-  // Mock data cho channels - thay bằng API call trong thực tế
-  const channels = [
-    { id: 1, name: "Kênh Live 1" },
-    { id: 2, name: "Kênh Live 2" },
-    // { id: 3, name: "Kênh Live 3" },
-  ];
-
+    fetchChannels();
+  }, []);
   useEffect(() => {
     // Chọn kênh đầu tiên mặc định
     if (channels.length > 0 && !selectedChannel) {
-      handleChannelSelect(channels[0].id);
+      setSelectedChannel(channels[0].id);
     }
-  }, []);
+  }, [channels, selectedChannel]); // Thêm selectedChannel để tránh loop
   // Khi thay đổi kênh hoặc ngày
   useEffect(() => {
     if (selectedChannel && selectedDate) {
@@ -91,8 +111,10 @@ function Schedule() {
     }
     setSelectedChannel(channelId);
     setHasChanges(false);
-    setNewScheduleItems([]); // Reset danh sách lịch mới khi đổi kênh
-    setDeletedIds([]); // Reset danh sách ID đã xóa khi đổi kênh
+    setNewScheduleItems([]); // Reset danh sách lịch mới khi đổi kênh    setDeletedIds([]); // Reset danh sách ID đã xóa khi đổi kênh
+    setSelectedVodSchedules(new Set()); // Reset danh sách VOD được chọn
+    setVodMapping(new Map()); // Reset mapping VOD
+    setExistingVods([]); // Reset danh sách VOD đã có
   };
 
   const formatDateForAPI = (date, isEndOfDay = false) => {
@@ -110,6 +132,9 @@ function Schedule() {
     // Reset the schedule immediately to avoid showing stale data
     setSchedule([]);
     setOriginalSchedule([]);
+    setSelectedVodSchedules(new Set()); // Reset danh sách VOD được chọn
+    setVodMapping(new Map()); // Reset mapping VOD
+    setExistingVods([]); // Reset danh sách VOD đã có
 
     try {
       const startTime = formatDateForAPI(date); // 00:00:00
@@ -124,11 +149,17 @@ function Schedule() {
           size: 100, // Lấy nhiều dữ liệu hơn để hiển thị đầy đủ lịch trong ngày
         },
       });
+
       if (response.data.code === 200) {
-        setSchedule(response.data.data || []);
-        setOriginalSchedule(
-          JSON.parse(JSON.stringify(response.data.data || []))
-        );
+        const scheduleData = response.data.data || [];
+        setSchedule(scheduleData);
+        setOriginalSchedule(JSON.parse(JSON.stringify(scheduleData)));
+
+        // Lấy danh sách VOD đã có cho các schedule này
+        if (scheduleData.length > 0) {
+          await fetchExistingVods(scheduleData.map((item) => item.id));
+        }
+
         setNewScheduleItems([]); // Reset danh sách lịch mới khi tải lại dữ liệu
         setDeletedIds([]); // Reset danh sách ID đã xóa khi tải lại dữ liệu
         setHasChanges(false);
@@ -173,7 +204,6 @@ function Schedule() {
       endTime: endDateTime.format("YYYY-MM-DDTHH:mm:ss"),
       title: "",
       videoPath: "", // Để hỗ trợ nhập URL
-      sourceLive: "", // Để hỗ trợ nhập RTMP link
       labels: [], // Mảng labels trống
       ads: [], // Mảng quảng cáo trống
     });
@@ -200,12 +230,10 @@ function Schedule() {
       labels: item.labels || [],
       ads: item.ads || [],
     };
+
     if (item.videoId) {
       // Nội dung từ kho
       formData.videoId = item.videoId;
-    } else if (item.sourceLive) {
-      // Nội dung trực tiếp
-      formData.sourceLive = item.sourceLive;
     } else {
       // Nội dung từ URL
       formData.videoPath = item.video || item.videoPath || "";
@@ -245,9 +273,11 @@ function Schedule() {
         isNewItem: true, // Đánh dấu đây là item mới
         labels: data.labels || [],
         ads: data.ads || [],
-      }; // Thêm item mới vào schedule và newScheduleItems
+      };
+
+      // Thêm item mới vào schedule và newScheduleItems
       setSchedule([...updatedSchedule, newItem]);
-      setNewScheduleItems((prev) => [...prev, newItem]);
+      setNewScheduleItems([...newScheduleItems, newItem]);
     } else {
       // Create new item locally
       const newItem = {
@@ -258,11 +288,13 @@ function Schedule() {
         isNewItem: true, // Đánh dấu đây là item mới
         labels: data.labels || [],
         ads: data.ads || [],
-      }; // Thêm vào danh sách lịch chung
+      };
+
+      // Thêm vào danh sách lịch chung
       setSchedule([...schedule, newItem]);
 
       // Thêm vào danh sách lịch mới
-      setNewScheduleItems((prev) => [...prev, newItem]);
+      setNewScheduleItems([...newScheduleItems, newItem]);
     }
     setIsModalOpen(false);
   };
@@ -307,11 +339,11 @@ function Schedule() {
           endTime: item.endTime,
           labels: item.labels || [], // Sử dụng labels đúng từ item
           ads: item.ads || [], // Thêm danh sách quảng cáo
-        }; // Xử lý video/videoId/sourceLive
+        };
+
+        // Xử lý video/videoId
         if (item.videoId) {
           scheduleItem.videoId = item.videoId;
-        } else if (item.sourceLive) {
-          scheduleItem.sourceLive = item.sourceLive;
         } else {
           scheduleItem.video = item.video || item.videoPath || "";
         }
@@ -324,7 +356,6 @@ function Schedule() {
         scheduleList: scheduleList,
         deletedIds: deletedIds,
       });
-
       const result = await axios.post(`${API_BASE_URL}/schedule/sync`, {
         channelId: selectedChannel,
         scheduleList: scheduleList,
@@ -385,7 +416,6 @@ function Schedule() {
         scheduleId: currentPlayingItem.id,
         playAds: playAds,
       });
-
       const result = await axios.post(`${API_BASE_URL}/schedule/stop-current`, {
         channelId: selectedChannel,
         scheduleId: currentPlayingItem.id,
@@ -443,8 +473,120 @@ function Schedule() {
     }
     setSelectedDate(date);
     setHasChanges(false);
-    setNewScheduleItems([]); // Reset danh sách lịch mới khi đổi ngày
-    setDeletedIds([]); // Reset danh sách ID đã xóa khi đổi ngày
+    setNewScheduleItems([]); // Reset danh sách lịch mới khi đổi ngày    setDeletedIds([]); // Reset danh sách ID đã xóa khi đổi ngày
+    setSelectedVodSchedules(new Set()); // Reset danh sách VOD được chọn
+    setVodMapping(new Map()); // Reset mapping VOD
+    setExistingVods([]); // Reset danh sách VOD đã có
+  };
+
+  // Hàm lấy danh sách VOD đã có từ server
+  const fetchExistingVods = async (scheduleIds) => {
+    if (!scheduleIds || scheduleIds.length === 0) return;
+
+    try {
+      const response = await axios.get(`${API_BASE_URL}/vods`, {
+        params: {
+          scheduleIds: scheduleIds.join(","),
+        },
+      });
+
+      if (response.data.code === 200) {
+        const vods = response.data.data || [];
+        setExistingVods(vods);
+
+        // Cập nhật selectedVodSchedules và vodMapping dựa trên dữ liệu từ server
+        const newSelectedVodSchedules = new Set();
+        const newVodMapping = new Map();
+
+        vods.forEach((vod) => {
+          if (vod.scheduleId) {
+            newSelectedVodSchedules.add(vod.scheduleId);
+            newVodMapping.set(vod.scheduleId, vod.id);
+          }
+        });
+
+        setSelectedVodSchedules(newSelectedVodSchedules);
+        setVodMapping(newVodMapping);
+      }
+    } catch (error) {
+      console.error("Error fetching existing VODs:", error);
+      // Không hiển thị lỗi để không làm phiền user, chỉ log
+    }
+  };
+  // Hàm xử lý tạo VOD từ lịch
+  const handleCreateVod = async (scheduleId) => {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/vods`, {
+        scheduleId: scheduleId,
+      });
+
+      if (response.data.code === 200) {
+        const vodData = response.data.data; // Lấy dữ liệu VOD từ response
+        const vodId = vodData.id; // Giả sử API trả về VOD object với ID
+
+        // Thêm schedule ID vào danh sách được chọn và lưu mapping
+        setSelectedVodSchedules((prev) => new Set(prev.add(scheduleId)));
+        setVodMapping((prev) => new Map(prev.set(scheduleId, vodId)));
+
+        // Cập nhật existingVods
+        setExistingVods((prev) => [...prev, { ...vodData, scheduleId }]);
+      }
+    } catch (error) {
+      console.error("Error creating VOD:", error);
+      setError(
+        "Lỗi khi tạo VOD: " +
+          (error.response?.data?.message || error.message || "Không xác định")
+      );
+    }
+  }; // Hàm xử lý hủy VOD
+  const handleCancelVod = async (scheduleId) => {
+    const vodId = vodMapping.get(scheduleId);
+    if (!vodId) {
+      setError("Không tìm thấy VOD ID để hủy");
+      return;
+    }
+
+    try {
+      await axios.delete(`${API_BASE_URL}/vods/${vodId}`);
+
+      // Xóa schedule ID khỏi danh sách được chọn và mapping
+      setSelectedVodSchedules((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(scheduleId);
+        return newSet;
+      });
+      setVodMapping((prev) => {
+        const newMap = new Map(prev);
+        newMap.delete(scheduleId);
+        return newMap;
+      });
+      // Cập nhật existingVods
+      setExistingVods((prev) =>
+        prev.filter((vod) => vod.scheduleId !== scheduleId)
+      );
+    } catch (error) {
+      console.error("Error canceling VOD:", error);
+      setError(
+        "Lỗi khi hủy VOD: " +
+          (error.response?.data?.message || error.message || "Không xác định")
+      );
+    }
+  }; // Hàm xử lý khi checkbox VOD được thay đổi
+  const handleVodCheckboxChange = async (schedule, isChecked) => {
+    // Chỉ cho phép thay đổi với lịch chưa phát và không đang phát
+    const isPast = isItemInPast(schedule);
+    const isCurrent = isItemCurrent(schedule);
+
+    if (isPast || isCurrent) {
+      // Không cho phép thay đổi với lịch đã phát hoặc đang phát
+      return;
+    }
+
+    if (isChecked) {
+      await handleCreateVod(schedule.id);
+    } else {
+      await handleCancelVod(schedule.id);
+    }
   };
 
   return (
@@ -531,9 +673,12 @@ function Schedule() {
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-200 uppercase tracking-wider">
                     Chương trình
-                  </th>
+                  </th>{" "}
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-200 uppercase tracking-wider">
                     Nguồn nội dung
+                  </th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-200 uppercase tracking-wider">
+                    Cắt VOD
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-200 uppercase tracking-wider">
                     Hành động
@@ -541,10 +686,11 @@ function Schedule() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-600">
+                {" "}
                 {loading ? (
                   <tr>
                     <td
-                      colSpan="4"
+                      colSpan="5"
                       className="px-6 py-4 text-center text-gray-300"
                     >
                       <div className="flex justify-center items-center">
@@ -617,10 +763,6 @@ function Schedule() {
                               <span className="px-2 py-1 bg-green-900 bg-opacity-50 text-green-300 rounded">
                                 ID: {item.videoId}
                               </span>
-                            ) : item.sourceLive ? (
-                              <span className="px-2 py-1 bg-red-900 bg-opacity-50 text-red-300 rounded flex items-center">
-                                🔴 Live: {item.sourceLive}
-                              </span>
                             ) : item.video || item.videoPath ? (
                               <span className="text-gray-300">
                                 {item.video || item.videoPath}
@@ -630,10 +772,43 @@ function Schedule() {
                                 Chưa có nguồn
                               </span>
                             )}
+                          </td>{" "}
+                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                            {/* Checkbox cho chức năng cắt VOD - hiển thị cho tất cả lịch */}
+                            {!item.isNewItem ? (
+                              <input
+                                type="checkbox"
+                                checked={selectedVodSchedules.has(item.id)}
+                                onChange={(e) =>
+                                  handleVodCheckboxChange(
+                                    item,
+                                    e.target.checked
+                                  )
+                                }
+                                disabled={loading || isPast || isCurrent}
+                                className={`w-4 h-4 text-indigo-600 bg-gray-700 border-gray-600 rounded focus:ring-indigo-500 focus:ring-2 ${
+                                  isPast || isCurrent
+                                    ? "opacity-50 cursor-not-allowed"
+                                    : ""
+                                }`}
+                                title={
+                                  isPast
+                                    ? "Lịch đã phát - không thể thay đổi"
+                                    : isCurrent
+                                    ? "Lịch đang phát - không thể thay đổi"
+                                    : "Cắt VOD từ lịch này"
+                                }
+                              />
+                            ) : (
+                              <span className="text-gray-500 text-sm">
+                                Lịch mới
+                              </span>
+                            )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <div className="flex justify-end items-center space-x-2">
                               {isCurrent ? (
+                                // Nút dừng cho lịch đang phát
                                 <>
                                   <button
                                     onClick={() => openEditModal(item)}
@@ -675,6 +850,7 @@ function Schedule() {
                                   <FaEye />
                                 </button>
                               ) : (
+                                // Cho phép sửa và xóa với lịch chưa phát
                                 <>
                                   <button
                                     onClick={() => openEditModal(item)}
@@ -700,7 +876,7 @@ function Schedule() {
                 ) : (
                   <tr>
                     <td
-                      colSpan="4"
+                      colSpan="5"
                       className="px-6 py-4 text-center text-gray-300"
                     >
                       Không có dữ liệu lịch phát sóng
@@ -709,11 +885,24 @@ function Schedule() {
                 )}
               </tbody>
             </table>
-          </div>
+          </div>{" "}
           {(newScheduleItems.length > 0 || deletedIds.length > 0) && (
             <div className="mt-4 p-3 bg-amber-800 bg-opacity-50 text-amber-100 rounded-lg">
               Lưu ý: Bạn có thay đổi chưa được lưu. Nhấn "Hoàn tất" để lưu thay
               đổi.
+            </div>
+          )}
+          {/* Hiển thị thông báo lỗi nếu có */}
+          {error && (
+            <div className="mt-4 p-4 bg-red-900 bg-opacity-50 text-red-100 rounded-lg border border-red-800">
+              <p className="font-medium">Lỗi:</p>
+              <p>{error}</p>
+              <button
+                onClick={() => setError(null)}
+                className="mt-2 text-sm underline hover:no-underline"
+              >
+                Đóng
+              </button>
             </div>
           )}
         </div>

@@ -1,5 +1,5 @@
 import axios from "axios";
-import { getToken, isAuthenticated } from "./keycloak";
+import { getToken, isAuthenticated, refreshToken, logout } from "./keycloak";
 
 /**
  * Thiết lập axios interceptor để tự động thêm token vào header
@@ -8,7 +8,7 @@ import { getToken, isAuthenticated } from "./keycloak";
 const setupAxiosInterceptors = () => {
   // Request interceptor
   axios.interceptors.request.use(
-    (config) => {
+    async (config) => {
       // Thêm token vào header Authorization nếu user đã đăng nhập
       if (isAuthenticated()) {
         const token = getToken();
@@ -28,13 +28,33 @@ const setupAxiosInterceptors = () => {
     (response) => {
       return response;
     },
-    (error) => {
+    async (error) => {
+      const originalRequest = error.config;
+
       // Xử lý các lỗi từ backend
       if (error.response) {
         // Lỗi 401 Unauthorized - token hết hạn hoặc không hợp lệ
-        if (error.response.status === 401) {
-          console.log("Unauthorized request: Token invalid or expired");
-          // Có thể thêm logic refresh token hoặc logout ở đây
+        if (error.response.status === 401 && !originalRequest._retry) {
+          originalRequest._retry = true;
+          
+          console.log("401 Unauthorized: Attempting to refresh token");
+          
+          try {
+            // Thử refresh token
+            await refreshToken();
+            const newToken = getToken();
+            
+            if (newToken) {
+              // Cập nhật token mới cho request ban đầu
+              originalRequest.headers.Authorization = `Bearer ${newToken}`;
+              return axios(originalRequest);
+            }
+          } catch (refreshError) {
+            console.error("Token refresh failed:", refreshError);
+            // Nếu refresh token thất bại, logout user
+            logout();
+            return Promise.reject(refreshError);
+          }
         }
 
         // Lỗi 403 Forbidden - không có quyền truy cập

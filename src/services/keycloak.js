@@ -1,5 +1,12 @@
 import Keycloak from "keycloak-js";
 import { KEYCLOAK_CLIENT_ID, KEYCLOAK_REALM } from "../utils/constants";
+import { 
+  shouldUseSilentCheckSso, 
+  shouldEnableIframeCheck, 
+  shouldEnableLogging,
+  getRedirectUriBase,
+  getCurrentEnvironment 
+} from "../utils/envConfig";
 
 // Biến global để theo dõi trạng thái khởi tạo của Keycloak
 let keycloakInitialized = false;
@@ -22,28 +29,59 @@ const initKeycloak = () => {
       authenticated: !!keycloak.authenticated,
     });
   }
-
   return new Promise((resolve, reject) => {
+    // Lấy cấu hình cho môi trường hiện tại
+    const currentEnv = getCurrentEnvironment();
+    const useSilentCheckSso = shouldUseSilentCheckSso();
+    const enableIframeCheck = shouldEnableIframeCheck();
+    const enableLogging = shouldEnableLogging();
+    const redirectUriBase = getRedirectUriBase();
+    
+    console.log(`Initializing Keycloak for environment: ${currentEnv}`);
+    console.log('Environment config:', { 
+      useSilentCheckSso, 
+      enableIframeCheck, 
+      enableLogging,
+      redirectUriBase,
+      currentOrigin: window.location.origin 
+    });
+
+    let initConfig = {
+      onLoad: "check-sso",
+      checkLoginIframe: enableIframeCheck,
+      pkceMethod: "S256",
+      enableLogging: enableLogging,
+    };
+
+    // Chỉ thêm silentCheckSsoRedirectUri nếu môi trường hỗ trợ
+    if (useSilentCheckSso) {
+      initConfig.silentCheckSsoRedirectUri = redirectUriBase + "/silent-check-sso.html";
+      console.log('Using silent check SSO with URI:', initConfig.silentCheckSsoRedirectUri);
+    }
+
+    console.log('Final Keycloak init config:', initConfig);
+
     keycloak
-      .init({
-        onLoad: "check-sso", // Don't redirect if not authenticated
-        silentCheckSsoRedirectUri:
-          window.location.origin + "/silent-check-sso.html",
-        checkLoginIframe: false, // Disable login iframe check as it can cause issues
-        pkceMethod: "S256",
-        enableLogging: true,
-      })
+      .init(initConfig)
       .then((authenticated) => {
+        console.log('Keycloak initialization result:', { authenticated });
+        
         // Đánh dấu là đã khởi tạo
         keycloakInitialized = true;
         
-        // Thiết lập token refresh
-        setupTokenRefresh();
+        // Thiết lập token refresh nếu đã authenticated
+        if (authenticated) {
+          setupTokenRefresh();
+        }
         
         // Đăng ký sự kiện khi token được cập nhật
         keycloak.onTokenExpired = () => {
           console.log('Token expired, refreshing...');
-          keycloak.updateToken(70);
+          keycloak.updateToken(70).catch(() => {
+            console.error('Failed to refresh expired token');
+            // Logout nếu không thể refresh token
+            logout();
+          });
         };
         
         resolve({ authenticated });
@@ -66,6 +104,7 @@ const initKeycloak = () => {
 const setupTokenRefresh = () => {
   // Chỉ thiết lập refresh token nếu đã xác thực
   if (keycloak.authenticated) {
+    console.log('Setting up token refresh mechanism');
     setInterval(() => {
       keycloak.updateToken(70)
         .then((refreshed) => {
@@ -73,12 +112,22 @@ const setupTokenRefresh = () => {
             console.log('Token was successfully refreshed');
           }
         })
-        .catch(() => {
-          console.error('Failed to refresh token, logging out...');
-          keycloak.logout();
+        .catch((error) => {
+          console.error('Failed to refresh token:', error);
+          console.log('Logging out due to token refresh failure...');
+          logout();
         });
     }, 60000); // Check mỗi phút
   }
+};
+
+/**
+ * Reset Keycloak initialization state
+ * Useful for development or when switching environments
+ */
+const resetKeycloakState = () => {
+  keycloakInitialized = false;
+  console.log('Keycloak state has been reset');
 };
 
 /**
@@ -86,10 +135,11 @@ const setupTokenRefresh = () => {
  * @param {Object} options - Login options
  */
 const login = (options = {}) => {
-  // Mặc định chuyển hướng về trang hiện tại sau khi đăng nhập
+  const redirectUriBase = getRedirectUriBase();
   const defaultOptions = {
-    redirectUri: window.location.href
+    redirectUri: redirectUriBase + window.location.pathname + window.location.search
   };
+  console.log('Login redirect URI:', defaultOptions.redirectUri);
   return keycloak.login({...defaultOptions, ...options});
 };
 
@@ -98,10 +148,11 @@ const login = (options = {}) => {
  * @param {Object} options - Logout options
  */
 const logout = (options = {}) => {
-  // Mặc định chuyển hướng về trang chủ sau khi đăng xuất
+  const redirectUriBase = getRedirectUriBase();
   const defaultOptions = {
-    redirectUri: window.location.origin
+    redirectUri: redirectUriBase
   };
+  console.log('Logout redirect URI:', defaultOptions.redirectUri);
   return keycloak.logout({...defaultOptions, ...options});
 };
 
@@ -194,6 +245,7 @@ export {
   getToken,
   getUserRoles,
   refreshToken,
+  resetKeycloakState,
   isAdmin,
   isEditor,
   isModerator,

@@ -36,17 +36,39 @@ function VideoList() {
       image: "https://picsum.photos/1920/1080?random=2", // Thay thế bằng ảnh từ picsum
       title: "Giải trí cho mọi lứa tuổi",
     },  ];
-
   useEffect(() => {
     // Lấy danh sách VOD từ API
-    axios
-      .get("http://167.172.78.132:8080/api/v1/videos")
-      .then((response) => setVideos(response.data))
-      .catch((error) => console.error("Error fetching videos:", error));
+    fetchVideos();
 
     // Lấy danh sách channels từ API
     fetchChannels();
   }, []);
+
+  const fetchVideos = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/vods/get-all`);
+      if (response.data.code === 200) {
+        const vodsData = response.data.data || [];
+        // Map VOD data to expected UI format
+        const mappedVideos = vodsData.map((vod) => ({
+          id: vod.id,
+          title: vod.title || vod.name || `VOD ${vod.id}`,
+          thumbnail: vod.thumbnail || vod.thumbnailUrl,
+          // Map other relevant fields as needed
+          description: vod.description,
+          duration: vod.duration,
+          createdAt: vod.createdAt
+        }));
+        setVideos(mappedVideos);
+      } else {
+        console.error("Error fetching VODs:", response.data.message);
+        setVideos([]);
+      }
+    } catch (error) {
+      console.error("Error fetching videos:", error);
+      setVideos([]);
+    }
+  };
   const fetchChannels = async () => {
     setLoadingChannels(true);
     try {
@@ -162,11 +184,9 @@ function VideoList() {
                 <p className="text-gray-400">Không có kênh live nào</p>
               </div>
             )}
-          </div>
-
-          {/* Videos Section */}
+          </div>          {/* VODs Section */}
           <div className="mb-16">
-            <h2 className="text-2xl font-semibold text-white mb-6">Videos</h2>
+            <h2 className="text-2xl font-semibold text-white mb-6">Video on Demand (VOD)</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {videos.map((video) => (
                 <Link

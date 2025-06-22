@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Home from "./components/Home";
 import VideoPlayer from "./components/VideoPlayer";
 import VideoUpload from "./components/VideoUpload";
@@ -7,44 +7,15 @@ import Schedule from "./components/Schedule";
 import AdManagement from "./components/AdManagement";
 import VideoManagement from "./components/VideoManagement";
 import ProtectedRoute from "./components/ProtectedRoute";
-import { initKeycloak, isAuthenticated } from "./services/keycloak";
+import useKeycloakAuth from "./hooks/useKeycloakAuth";
+import setupAxiosInterceptors from "./services/axiosConfig";
 
 function App() {
-  const [keycloakReady, setKeycloakReady] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const { initialized, authenticated, loading, error } = useKeycloakAuth();
 
-  // Khởi tạo Keycloak khi app load
+  // Thiết lập axios interceptors khi app load
   useEffect(() => {
-    // Tạo biến để theo dõi xem component có bị unmount không
-    let isMounted = true;
-
-    const initAuth = async () => {
-      try {
-        const { authenticated } = await initKeycloak();
-        console.log("Keycloak initialized, user authenticated:", authenticated);
-        
-        // Chỉ cập nhật state nếu component vẫn mounted
-        if (isMounted) {
-          setKeycloakReady(true);
-          setLoading(false);
-        }
-      } catch (error) {
-        console.error("Failed to initialize keycloak:", error);
-        
-        // Ngay cả khi có lỗi vẫn render UI
-        if (isMounted) {
-          setKeycloakReady(true);
-          setLoading(false);
-        }
-      }
-    };
-
-    initAuth();
-
-    // Cleanup function để tránh memory leak
-    return () => {
-      isMounted = false;
-    };
+    setupAxiosInterceptors();
   }, []);
 
   // Hiển thị màn hình loading khi đang khởi tạo Keycloak
@@ -54,6 +25,26 @@ function App() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-indigo-500 mx-auto mb-4"></div>
           <h2 className="text-xl text-white font-semibold">Đang tải...</h2>
+          <p className="text-gray-400 mt-2">Đang khởi tạo hệ thống xác thực</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Hiển thị lỗi nếu có
+  if (error && !initialized) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <h2 className="text-xl text-white font-semibold mb-2">Lỗi khởi tạo</h2>
+          <p className="text-gray-400">{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+          >
+            Thử lại
+          </button>
         </div>
       </div>
     );
@@ -74,7 +65,8 @@ function App() {
               <VideoUpload />
             </ProtectedRoute>
           } 
-        />        <Route 
+        />
+        <Route 
           path="/schedule" 
           element={
             <ProtectedRoute requiredRoles={['ADMIN', 'EDITOR']}>
