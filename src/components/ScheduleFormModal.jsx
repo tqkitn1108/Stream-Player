@@ -9,6 +9,7 @@ import {
   FaTrashAlt,
   FaClock,
   FaBroadcastTower,
+  FaTimes,
 } from "react-icons/fa";
 import { useForm } from "react-hook-form";
 import axios from "axios";
@@ -28,18 +29,24 @@ function ScheduleFormModal({
   isEditing,
   currentItem,
   isItemInPast,
-}) {
-  if (!isOpen) return null;
-  const [showLabel, setShowLabel] = useState(true);
-  // Thêm state cho content selection
+}) {  if (!isOpen) return null;
+  const [showLabel, setShowLabel] = useState(
+    initialFormData.labels && initialFormData.labels.length > 0 ? true : true
+  );
+  const [customLabel, setCustomLabel] = useState(
+    initialFormData.labels && initialFormData.labels.length > 0 
+      ? initialFormData.labels[0].name 
+      : initialFormData.title || ""
+  );// Thêm state cho content selection
   const [contentSelectionType, setContentSelectionType] = useState("url"); // "url", "library", hoặc "live"
   const [contentLibrary, setContentLibrary] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loadingContent, setLoadingContent] = useState(false);
   const [selectedContent, setSelectedContent] = useState(null);
   const [showContentLibraryPopup, setShowContentLibraryPopup] = useState(false);
-
   // State cho quảng cáo
   const [adsList, setAdsList] = useState([]);
+  const [adsCategories, setAdsCategories] = useState([]);
   const [scheduleAds, setScheduleAds] = useState(initialFormData.ads || []);
   const [loadingAds, setLoadingAds] = useState(false);
   const [showAdsPopup, setShowAdsPopup] = useState(false);
@@ -58,9 +65,22 @@ function ScheduleFormModal({
   } = useForm({
     defaultValues: initialFormData,
   });
-
   // Lấy giá trị title từ form để tạo label tự động
   const currentTitle = watch("title");
+  
+  // Auto-sync custom label with title when title changes
+  useEffect(() => {
+    if (currentTitle && !customLabel) {
+      setCustomLabel(currentTitle);
+    }
+  }, [currentTitle]);
+  
+  // Update custom label when title changes and custom label is empty or same as previous title
+  useEffect(() => {
+    if (currentTitle) {
+      setCustomLabel(currentTitle);
+    }
+  }, [currentTitle]);
   // Tự động detect content type khi form data thay đổi
   useEffect(() => {
     if (initialFormData.videoId) {
@@ -76,21 +96,20 @@ function ScheduleFormModal({
       setContentSelectionType("url");
     }
   }, [initialFormData]);
-
   // Fetch nội dung từ kho khi mở popup thư viện
   useEffect(() => {
     if (showContentLibraryPopup) {
       fetchContentLibrary();
+      fetchCategories();
     }
   }, [showContentLibraryPopup]);
-
   // Fetch danh sách quảng cáo khi mở popup quảng cáo
   useEffect(() => {
     if (showAdsPopup) {
       fetchAdsList();
+      fetchAdsCategories();
     }
   }, [showAdsPopup]);
-
   const fetchContentLibrary = async () => {
     try {
       setLoadingContent(true);
@@ -107,6 +126,18 @@ function ScheduleFormModal({
     }
   };
 
+  const fetchCategories = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/videos/category`);
+      if (response.data.code === 200) {
+        setCategories(response.data.data || []);
+      } else {
+        console.error("Error fetching categories:", response.data.message);
+      }
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+    }
+  };
   const fetchAdsList = async () => {
     try {
       setLoadingAds(true);
@@ -122,15 +153,35 @@ function ScheduleFormModal({
       setLoadingAds(false);
     }
   };
-  // Xử lý khi chọn nội dung từ thư viện
+
+  const fetchAdsCategories = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/ads/category`);
+      if (response.data.code === 200) {
+        setAdsCategories(response.data.data || []);
+      } else {
+        console.error("Error fetching ads categories:", response.data.message);
+      }
+    } catch (error) {
+      console.error("Error fetching ads categories:", error);
+    }
+  };// Xử lý khi chọn nội dung từ thư viện
   const handleSelectContent = (content) => {
     setSelectedContent(content);
     setValue("videoId", content.id);
     setValue("title", content.title);
+    
+    // Auto-set end time based on video duration
+    const currentStartTime = watch("startTime");
+    if (currentStartTime && content.duration) {
+      const startTime = dayjs(currentStartTime);
+      const endTime = startTime.add(content.duration, 'second');
+      setValue("endTime", endTime.format("YYYY-MM-DDTHH:mm:ss"));
+    }
+    
     setShowContentLibraryPopup(false);
   };
-
-  // Xử lý thêm quảng cáo
+  // Xử lý thêm quảng cáo (legacy - keep for compatibility)
   const handleAddAd = (ad) => {
     setCurrentAd(ad);
     const formStartTime = watch("startTime");
@@ -157,9 +208,55 @@ function ScheduleFormModal({
         ? defaultEndTime.format("YYYY-MM-DDTHH:mm:ss")
         : programEndTime.format("YYYY-MM-DDTHH:mm:ss")
     );
-  };
+  };  // Xử lý thêm nhiều quảng cáo cùng lúc
+  const handleAddMultipleAds = (adsToAdd, totalAdsDuration = 0) => {
+    const validAds = [];
+    const errors = [];
+    
+    adsToAdd.forEach((adData, index) => {
+      const { ad, startTime, endTime } = adData;
+      
+      // Kiểm tra không chồng lấn với quảng cáo đã có
+      const overlapping = [...scheduleAds, ...validAds].some((existingAd) => {
+        const existingStart = dayjs(existingAd.startTime);
+        const existingEnd = dayjs(existingAd.endTime);
+        const newStart = dayjs(startTime);
+        const newEnd = dayjs(endTime);
 
-  // Kiểm tra và xác nhận thêm quảng cáo
+        return (
+          (newStart.isAfter(existingStart) && newStart.isBefore(existingEnd)) ||
+          (newEnd.isAfter(existingStart) && newEnd.isBefore(existingEnd)) ||
+          (newStart.isBefore(existingStart) && newEnd.isAfter(existingEnd)) ||
+          newStart.isSame(existingStart) ||
+          newEnd.isSame(existingEnd)
+        );
+      });
+
+      if (!overlapping) {
+        validAds.push({
+          adId: ad.id,
+          title: ad.title,
+          startTime,
+          endTime,
+        });
+      } else {
+        errors.push(`Quảng cáo "${ad.title}" chồng lấn thời gian`);
+      }
+    });
+
+    // Thêm quảng cáo hợp lệ
+    setScheduleAds([...scheduleAds, ...validAds]);
+    
+    // Tự động gia hạn thời gian kết thúc chương trình
+    if (validAds.length > 0 && totalAdsDuration > 0) {
+      const currentEndTime = watch("endTime");
+      if (currentEndTime) {
+        const newEndTime = dayjs(currentEndTime).add(totalAdsDuration, 'second');
+        setValue("endTime", newEndTime.format("YYYY-MM-DDTHH:mm:ss"));
+      }
+    }
+  };
+  // Kiểm tra và xác nhận thêm quảng cáo (legacy - keep for compatibility)
   const confirmAddAd = () => {
     // Reset lỗi
     setAdErrors({});
@@ -271,14 +368,12 @@ function ScheduleFormModal({
       data.videoId = selectedContent.id; // Gán ID từ kho vào trường videoId
     } else if (contentSelectionType === "live") {
       data.sourceLive = formData.sourceLive || ""; // Gán RTMP link vào trường sourceLive
-    }
-
-    // Xử lý labels
+    }    // Xử lý labels
     if (showLabel) {
-      // Nếu bật label, tạo label tự động từ title, không có trường color
+      // Nếu bật label, tạo label tự động từ custom label hoặc title
       data.labels = [
         {
-          name: data.title,
+          name: customLabel || data.title,
           displayDuration: -1,
         },
       ];
@@ -303,12 +398,20 @@ function ScheduleFormModal({
     : "Thêm mới";
 
   const isDisabled = isEditing && isItemInPast(currentItem);
-  return (
-    <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-30">
+  return (    <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-30">
       <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <h2 className="text-2xl font-bold text-white mb-4">
-          {modalTitle} lịch phát sóng
-        </h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold text-white">
+            {modalTitle} lịch phát sóng
+          </h2>
+          <button 
+            onClick={onClose}
+            className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-gray-700 rounded"
+            title="Đóng"
+          >
+            <FaTimes size={18} />
+          </button>
+        </div>
         <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
           {/* Form fields with improved layout */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -575,41 +678,45 @@ function ScheduleFormModal({
             </div>
           </div>
           {/* Thêm field ẩn để lưu trữ thông tin labels */}
-          <input type="hidden" {...register("labels")} />
-          {/* Checkbox hiển thị label */}
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id="showLabel"
-              checked={showLabel}
-              onChange={() => setShowLabel(!showLabel)}
-              disabled={isDisabled}
-              className="w-4 h-4 text-indigo-600 border-gray-500 rounded focus:ring-indigo-500"
-            />
-            <label
-              htmlFor="showLabel"
-              className="ml-2 block text-sm text-gray-200"
-            >
-              Hiển thị nhãn chương trình
-            </label>
-          </div>
-          {/* Khi bật hiển thị label, cho xem trước */}
-          {showLabel && (
-            <div className="mt-2 p-2 bg-gray-700 rounded">
-              <div className="text-sm text-gray-300 mb-1">
-                Label sẽ được tạo:
-              </div>
-              <span
-                className="inline-block px-2 py-1 rounded-full text-sm"
-                style={{ backgroundColor: "#28A745" }}
+          <input type="hidden" {...register("labels")} />          {/* Checkbox hiển thị label */}
+          <div className="space-y-3">
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="showLabel"
+                checked={showLabel}
+                onChange={() => setShowLabel(!showLabel)}
+                disabled={isDisabled}
+                className="w-4 h-4 text-indigo-600 border-gray-500 rounded focus:ring-indigo-500"
+              />
+              <label
+                htmlFor="showLabel"
+                className="ml-2 block text-sm text-gray-200"
               >
-                {currentTitle || "Tên chương trình"}
-              </span>
-              <div className="text-xs text-gray-400 mt-1">
-                Hiển thị xuyên suốt chương trình
-              </div>
+                Hiển thị nhãn chương trình
+              </label>
             </div>
-          )}
+            
+            {/* Khi bật hiển thị label, cho phép chỉnh sửa */}
+            {showLabel && (
+              <div>
+                <label className="block text-gray-200 mb-2 text-sm">
+                  Nội dung nhãn
+                </label>
+                <input
+                  type="text"
+                  value={customLabel}
+                  onChange={(e) => setCustomLabel(e.target.value)}
+                  placeholder="Nhập nội dung nhãn"
+                  className="w-full px-3 py-2 bg-gray-700 text-white rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  disabled={isDisabled}
+                />
+                <div className="text-xs text-gray-400 mt-1">
+                  Hiển thị xuyên suốt chương trình
+                </div>
+              </div>
+            )}
+          </div>
           <div className="flex justify-end space-x-3 pt-5 mt-4 border-t border-gray-700">
             <button
               type="button"
@@ -638,9 +745,7 @@ function ScheduleFormModal({
             )}
           </div>
         </form>
-      </div>
-
-      {/* Sử dụng component ContentLibraryModal */}
+      </div>      {/* Sử dụng component ContentLibraryModal */}
       <ContentLibraryModal
         isOpen={showContentLibraryPopup}
         onClose={() => setShowContentLibraryPopup(false)}
@@ -648,22 +753,18 @@ function ScheduleFormModal({
         loadingContent={loadingContent}
         selectedContent={selectedContent}
         handleSelectContent={handleSelectContent}
-      />
-
-      {/* Sử dụng component AdsSelectionModal */}
+        categories={categories}
+      />      {/* Sử dụng component AdsSelectionModal */}
       <AdsSelectionModal
         isOpen={showAdsPopup}
         onClose={() => setShowAdsPopup(false)}
         adsList={adsList}
         loadingAds={loadingAds}
-        currentAd={currentAd}
-        handleAddAd={handleAddAd}
-        adStartTime={adStartTime}
-        setAdStartTime={setAdStartTime}
-        adEndTime={adEndTime}
-        setAdEndTime={setAdEndTime}
-        adErrors={adErrors}
-        confirmAddAd={confirmAddAd}
+        handleAddMultipleAds={handleAddMultipleAds}
+        programStartTime={watch("startTime")}
+        programEndTime={watch("endTime")}
+        existingAds={scheduleAds}
+        categories={adsCategories}
       />
     </div>
   );

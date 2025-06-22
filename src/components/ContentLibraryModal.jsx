@@ -1,5 +1,5 @@
-import React from "react";
-import { FaCheck, FaTimes } from "react-icons/fa";
+import React, { useState, useEffect } from "react";
+import { FaCheck, FaTimes, FaFilter } from "react-icons/fa";
 import ThumbnailImage from "./ThumbnailImage";
 
 function ContentLibraryModal({
@@ -9,7 +9,14 @@ function ContentLibraryModal({
   loadingContent,
   selectedContent,
   handleSelectContent,
+  categories = [],
 }) {
+  const [filterCategory, setFilterCategory] = useState("all");
+  // Filter content based on category
+  const filteredContent = contentLibrary.filter((content) => {
+    return filterCategory === "all" || content.categoryId === parseInt(filterCategory);
+  });
+
   if (!isOpen) return null;
 
   return (
@@ -18,12 +25,34 @@ function ContentLibraryModal({
         className="absolute inset-0 bg-black opacity-30"
         onClick={onClose}
       ></div>
-      <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-2xl z-10">
-        <div className="flex justify-between items-center mb-4">
+      <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-2xl z-10">        <div className="flex justify-between items-center mb-4">
           <h3 className="text-xl font-bold text-white">Chọn nội dung từ kho</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white">
-            <FaTimes />
+          <button 
+            onClick={onClose} 
+            className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-gray-700 rounded"
+            title="Đóng"
+          >
+            <FaTimes size={18} />
           </button>
+        </div>
+
+        {/* Category Filter */}
+        <div className="mb-4">
+          <div className="relative">
+            <FaFilter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-gray-700 text-white rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none"
+            >
+              <option value="all">Tất cả danh mục</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="max-h-96 overflow-y-auto border border-gray-700 rounded">
@@ -31,9 +60,8 @@ function ContentLibraryModal({
             <div className="text-center py-8 text-gray-300">
               <div className="animate-spin inline-block w-8 h-8 border-2 border-current border-t-transparent rounded-full mb-2"></div>
               <p>Đang tải danh sách nội dung...</p>
-            </div>
-          ) : contentLibrary.length > 0 ? (            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3">
-              {contentLibrary.map((content) => (
+            </div>          ) : filteredContent.length > 0 ? (            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3">
+              {filteredContent.map((content) => (
                 <div
                   key={content.id}
                   onClick={() => handleSelectContent(content)}
@@ -75,11 +103,13 @@ function ContentLibraryModal({
                     )}
                   </div>
                 </div>
-              ))}
-            </div>
+              ))}            </div>
           ) : (
             <div className="text-center py-8 text-gray-300">
-              Không có nội dung nào trong kho
+              {filterCategory === "all" 
+                ? "Không có nội dung nào trong kho"
+                : "Không có nội dung nào trong danh mục này"
+              }
             </div>
           )}
         </div>

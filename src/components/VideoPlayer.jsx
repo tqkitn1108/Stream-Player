@@ -7,33 +7,40 @@ import "jb-videojs-hls-quality-selector";
 import axios from "axios";
 import Navbar from "./Navbar";
 import dayjs from "dayjs";
-import 'dayjs/locale/vi';
+import "dayjs/locale/vi";
 
 const API_BASE_URL =
   `${import.meta.env.VITE_BACKEND_URL}/api/v1` ||
   "http://34.126.102.97:8080/api/v1";
 // Cấu hình dayjs
-dayjs.locale('vi');
+dayjs.locale("vi");
 
 function VideoPlayer() {
   const { videoId, channelId } = useParams();
   const navigate = useNavigate();
   const videoRef = useRef(null);
   const playerRef = useRef(null);
-    // State cho lịch phát sóng
+  const scheduleRef = useRef(null); // Thêm ref cho schedule container
+  // State cho lịch phát sóng
   const [schedule, setSchedule] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [currentTime, setCurrentTime] = useState(dayjs()); // Theo dõi thời gian hiện tại
+  const [channelName, setChannelName] = useState(""); // Thêm state cho tên kênh
+  const [videoHeight, setVideoHeight] = useState(0); // State để lưu chiều cao video
 
   const isLive = !!channelId;
   const hlsUrl = isLive
     ? `${import.meta.env.VITE_BACKEND_URL}/hls/${channelId}/master.m3u8`
-    : videoId ? `http://167.172.78.132:8080/vod/${videoId}.m3u8` : "";
+    : videoId
+    ? `http://167.172.78.132:8080/vod/${videoId}.m3u8`
+    : "";
+
   useEffect(() => {
     // Fetch schedule for live channel
     if (isLive) {
       fetchChannelSchedule(channelId);
+      fetchChannelInfo(channelId); // Lấy thông tin kênh từ API
     }
   }, [channelId, isLive]);
 
@@ -48,25 +55,43 @@ function VideoPlayer() {
       return () => clearInterval(intervalId); // Dọn dẹp khi unmount
     }
   }, [isLive]);
+  const fetchChannelInfo = async (channelId) => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/channels/${channelId}`);
+      if (response.data.code === 200) {
+        const channel = response.data.data;
+        if (channel) {
+          setChannelName(channel.channelName);
+        } else {
+          setChannelName(`Kênh ${channelId}`); // Fallback
+        }
+      } else {
+        setChannelName(`Kênh ${channelId}`); // Fallback
+      }
+    } catch (error) {
+      console.error("Error fetching channel info:", error);
+      setChannelName(`Kênh ${channelId}`); // Fallback
+    }
+  };
 
   const fetchChannelSchedule = async (channelId) => {
     setLoading(true);
     setError(null);
-    
+
     try {
       // Lấy lịch từ đầu ngày hiện tại đến cuối ngày
-      const today = dayjs().startOf('day');
-      const startTime = today.format('YYYY-MM-DDT00:00:00');
-      const endTime = today.format('YYYY-MM-DDT23:59:59');
+      const today = dayjs().startOf("day");
+      const startTime = today.format("YYYY-MM-DDT00:00:00");
+      const endTime = today.format("YYYY-MM-DDT23:59:59");
 
       const response = await axios.get(`${API_BASE_URL}/schedule`, {
         params: {
-          channelId: 1,
+          channelId: channelId,
           startTime: startTime,
           endTime: endTime,
           page: 0,
-          size: 100
-        }
+          size: 100,
+        },
       });
 
       if (response.data.code === 200) {
@@ -96,7 +121,7 @@ function VideoPlayer() {
         controls: true,
         responsive: true,
         fluid: false,
-        aspectRatio: '16:9',
+        aspectRatio: "16:9",
         liveui: true,
         sources: [{ src: hlsUrl, type: "application/x-mpegURL" }],
         controlBar: {
@@ -139,20 +164,76 @@ function VideoPlayer() {
 
   // Format thời gian hiển thị
   const formatTime = (dateTimeString) => {
-    return dayjs(dateTimeString).format('HH:mm:ss');
+    return dayjs(dateTimeString).format("HH:mm:ss");
   };
+  // Thêm useEffect để đồng bộ chiều cao
+  useEffect(() => {
+    const updateScheduleHeight = () => {
+      const videoContainer = document.querySelector("[data-vjs-player]");
+      if (videoContainer && scheduleRef.current && isLive) {
+        const videoContainerHeight = videoContainer.offsetHeight;
+        setVideoHeight(videoContainerHeight);
+      }
+    };
+
+    // Cập nhật chiều cao khi component mount và khi resize
+    updateScheduleHeight();
+    window.addEventListener("resize", updateScheduleHeight);
+
+    // Thêm observer để theo dõi thay đổi kích thước video
+    const videoContainer = document.querySelector("[data-vjs-player]");
+    if (videoContainer) {
+      const resizeObserver = new ResizeObserver(updateScheduleHeight);
+      resizeObserver.observe(videoContainer);
+
+      return () => {
+        window.removeEventListener("resize", updateScheduleHeight);
+        resizeObserver.disconnect();
+      };
+    }
+
+    return () => {
+      window.removeEventListener("resize", updateScheduleHeight);
+    };
+  }, [isLive, playerRef.current]);
+  useEffect(() => {
+    const videoElement = videoRef.current;
+
+    if (videoElement && playerRef.current) {
+      const player = playerRef.current;
+
+      // Cập nhật lại nguồn phát và tự động phát
+      player.src({ src: hlsUrl, type: "application/x-mpegURL" });
+
+      // Sử dụng player.ready() với callback thay vì Promise
+      player.ready(() => {
+        if (isLive) {
+          player.play().catch((error) => {
+            console.error("Error while trying to play the video:", error);
+          });
+        }
+      });
+    }
+  }, [hlsUrl, isLive]);
 
   return (
     <div className="bg-gray-900 min-h-screen">
       <Navbar />
       <div className="container mx-auto p-4 pt-24">
-        <button
-          onClick={() => navigate("/")}
-          className="mb-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
-        >
-          Quay lại
-        </button>
-
+        {/* Hiển thị tên kênh thay vì nút quay lại */}
+        {isLive && (
+          <div className="mb-4">
+            <h1 className="text-3xl font-bold text-white">{channelName}</h1>
+          </div>
+        )}
+        {!isLive && (
+          <button
+            onClick={() => navigate("/")}
+            className="mb-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+          >
+            Quay lại
+          </button>
+        )}{" "}
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Video Player */}
           <div className="lg:w-2/3">
@@ -162,20 +243,27 @@ function VideoPlayer() {
                 className="video-js vjs-default-skin vjs-big-play-centered"
               />
             </div>
-            
+
             {!isLive && videoId && (
               <div className="mt-4 p-4 bg-gray-800 rounded-lg">
-                <h2 className="text-2xl font-bold text-white mb-2">Thông tin video</h2>
+                <h2 className="text-2xl font-bold text-white mb-2">
+                  Thông tin video
+                </h2>
                 <p className="text-gray-300">Video ID: {videoId}</p>
               </div>
             )}
           </div>
-
           {/* Schedule Section - Hiển thị bên phải khi là kênh live */}
           {isLive && (
-            <div className="lg:w-1/3 bg-gray-800 p-4 rounded-lg self-start">
-              <h2 className="text-2xl font-bold text-white mb-4">Lịch phát sóng hôm nay</h2>
-              
+            <div
+              ref={scheduleRef}
+              className="lg:w-1/3 bg-gray-800 p-4 rounded-lg"
+              style={{ height: videoHeight > 0 ? `${videoHeight}px` : "auto" }}
+            >
+              <h2 className="text-2xl font-bold text-white mb-4 text-center">
+                Lịch phát sóng hôm nay
+              </h2>
+
               {loading ? (
                 <div className="flex justify-center py-10">
                   <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
@@ -185,10 +273,18 @@ function VideoPlayer() {
                   {error}
                 </div>
               ) : (
-                <div className="overflow-y-auto" style={{ maxHeight: "500px" }}>
+                <div
+                  className="overflow-y-auto"
+                  style={{
+                    height:
+                      videoHeight > 0
+                        ? `${videoHeight - 80}px`
+                        : "calc(100% - 60px)",
+                  }}
+                >
                   <table className="w-full">
-                    <thead>
-                      <tr className="bg-gray-700 text-left text-gray-200">
+                    <thead className="sticky top-0 bg-gray-700">
+                      <tr className="text-left text-gray-200">
                         <th className="py-2 px-3 w-1/4">Thời gian</th>
                         <th className="py-2 px-3">Chương trình</th>
                       </tr>
@@ -197,14 +293,14 @@ function VideoPlayer() {
                       {schedule.length > 0 ? (
                         schedule.map((item) => {
                           const isCurrent = isItemCurrent(item);
-                          
+
                           return (
-                            <tr 
-                              key={item.id} 
+                            <tr
+                              key={item.id}
                               className={`${
-                                isCurrent 
-                                  ? 'bg-indigo-800 border-l-4 border-indigo-500' 
-                                  : 'hover:bg-gray-650'
+                                isCurrent
+                                  ? "bg-indigo-800 border-l-4 border-indigo-500"
+                                  : "hover:bg-gray-650"
                               }`}
                             >
                               <td className="py-3 px-3 font-medium text-gray-200">
@@ -223,7 +319,10 @@ function VideoPlayer() {
                         })
                       ) : (
                         <tr>
-                          <td colSpan="2" className="py-4 px-3 text-center text-gray-300">
+                          <td
+                            colSpan="2"
+                            className="py-4 px-3 text-center text-gray-300"
+                          >
                             Không có lịch phát sóng hôm nay
                           </td>
                         </tr>
