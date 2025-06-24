@@ -29,15 +29,17 @@ function ScheduleFormModal({
   isEditing,
   currentItem,
   isItemInPast,
-}) {  if (!isOpen) return null;
+  mode = "add", // Thêm prop mode: "add", "edit", "view"
+}) {
+  if (!isOpen) return null;
   const [showLabel, setShowLabel] = useState(
     initialFormData.labels && initialFormData.labels.length > 0 ? true : true
   );
   const [customLabel, setCustomLabel] = useState(
-    initialFormData.labels && initialFormData.labels.length > 0 
-      ? initialFormData.labels[0].name 
+    initialFormData.labels && initialFormData.labels.length > 0
+      ? initialFormData.labels[0].name
       : initialFormData.title || ""
-  );// Thêm state cho content selection
+  ); // Thêm state cho content selection
   const [contentSelectionType, setContentSelectionType] = useState("url"); // "url", "library", hoặc "live"
   const [contentLibrary, setContentLibrary] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -67,14 +69,14 @@ function ScheduleFormModal({
   });
   // Lấy giá trị title từ form để tạo label tự động
   const currentTitle = watch("title");
-  
+
   // Auto-sync custom label with title when title changes
   useEffect(() => {
     if (currentTitle && !customLabel) {
       setCustomLabel(currentTitle);
     }
   }, [currentTitle]);
-  
+
   // Update custom label when title changes and custom label is empty or same as previous title
   useEffect(() => {
     if (currentTitle) {
@@ -88,14 +90,20 @@ function ScheduleFormModal({
       // Set selected content nếu có videoId
       setSelectedContent({
         id: initialFormData.videoId,
-        title: initialFormData.title || "Nội dung từ kho"
+        title: initialFormData.title || "Nội dung từ kho",
       });
     } else if (initialFormData.sourceLive) {
       setContentSelectionType("live");
     } else if (initialFormData.videoPath || initialFormData.video) {
       setContentSelectionType("url");
     }
-  }, [initialFormData]);
+  }, [initialFormData]); // Fetch quảng cáo theo scheduleId khi edit hoặc view
+  useEffect(() => {
+    // Gọi API khi có currentItem và currentItem.id (bao gồm cả trường hợp view và edit)
+    if (currentItem && currentItem.id) {
+      fetchAdsByScheduleId(currentItem.id);
+    }
+  }, [currentItem]);
   // Fetch nội dung từ kho khi mở popup thư viện
   useEffect(() => {
     if (showContentLibraryPopup) {
@@ -165,20 +173,44 @@ function ScheduleFormModal({
     } catch (error) {
       console.error("Error fetching ads categories:", error);
     }
-  };// Xử lý khi chọn nội dung từ thư viện
+  }; // Fetch quảng cáo theo scheduleId
+  const fetchAdsByScheduleId = async (scheduleId) => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/ads/by-schedule`, {
+        params: { scheduleId },
+      });
+      if (response.data.code === 200) {
+        const adsData = response.data.data || [];
+        // Transform API data to match current scheduleAds format
+        const transformedAds = adsData.map((ad) => ({
+          adId: ad.adId,
+          title: ad.title,
+          startTime: ad.startTime,
+          endTime: ad.endTime,
+          adScheduleId: ad.adScheduleId, // Lưu thêm adScheduleId để có thể xử lý sau này nếu cần
+        }));
+        setScheduleAds(transformedAds);
+      } else {
+        console.error("Error fetching ads by schedule:", response.data.message);
+      }
+    } catch (error) {
+      console.error("Failed to fetch ads by schedule:", error);
+    }
+  };
+  // Xử lý khi chọn nội dung từ thư viện
   const handleSelectContent = (content) => {
     setSelectedContent(content);
     setValue("videoId", content.id);
     setValue("title", content.title);
-    
+
     // Auto-set end time based on video duration
     const currentStartTime = watch("startTime");
     if (currentStartTime && content.duration) {
       const startTime = dayjs(currentStartTime);
-      const endTime = startTime.add(content.duration, 'second');
+      const endTime = startTime.add(content.duration, "second");
       setValue("endTime", endTime.format("YYYY-MM-DDTHH:mm:ss"));
     }
-    
+
     setShowContentLibraryPopup(false);
   };
   // Xử lý thêm quảng cáo (legacy - keep for compatibility)
@@ -208,14 +240,14 @@ function ScheduleFormModal({
         ? defaultEndTime.format("YYYY-MM-DDTHH:mm:ss")
         : programEndTime.format("YYYY-MM-DDTHH:mm:ss")
     );
-  };  // Xử lý thêm nhiều quảng cáo cùng lúc
+  }; // Xử lý thêm nhiều quảng cáo cùng lúc
   const handleAddMultipleAds = (adsToAdd, totalAdsDuration = 0) => {
     const validAds = [];
     const errors = [];
-    
+
     adsToAdd.forEach((adData, index) => {
       const { ad, startTime, endTime } = adData;
-      
+
       // Kiểm tra không chồng lấn với quảng cáo đã có
       const overlapping = [...scheduleAds, ...validAds].some((existingAd) => {
         const existingStart = dayjs(existingAd.startTime);
@@ -246,12 +278,15 @@ function ScheduleFormModal({
 
     // Thêm quảng cáo hợp lệ
     setScheduleAds([...scheduleAds, ...validAds]);
-    
+
     // Tự động gia hạn thời gian kết thúc chương trình
     if (validAds.length > 0 && totalAdsDuration > 0) {
       const currentEndTime = watch("endTime");
       if (currentEndTime) {
-        const newEndTime = dayjs(currentEndTime).add(totalAdsDuration, 'second');
+        const newEndTime = dayjs(currentEndTime).add(
+          totalAdsDuration,
+          "second"
+        );
         setValue("endTime", newEndTime.format("YYYY-MM-DDTHH:mm:ss"));
       }
     }
@@ -337,19 +372,20 @@ function ScheduleFormModal({
   const removeAd = (index) => {
     const newAds = [...scheduleAds];
     newAds.splice(index, 1);
-    setScheduleAds(newAds);  };  // Xử lý submit form với việc thêm/xóa label và quảng cáo
+    setScheduleAds(newAds);
+  }; // Xử lý submit form với việc thêm/xóa label và quảng cáo
   const onFormSubmit = (formData) => {
     // Validation cho content selection
     if (contentSelectionType === "library" && !selectedContent) {
       alert("Vui lòng chọn nội dung từ kho");
       return;
     }
-    
+
     if (contentSelectionType === "url" && !formData.videoPath) {
       alert("Vui lòng nhập URL video");
       return;
     }
-    
+
     if (contentSelectionType === "live" && !formData.sourceLive) {
       alert("Vui lòng nhập link RTMP");
       return;
@@ -359,7 +395,8 @@ function ScheduleFormModal({
     const data = {
       title: formData.title,
       startTime: formData.startTime,
-      endTime: formData.endTime,    };
+      endTime: formData.endTime,
+    };
 
     // Xử lý video dựa trên loại lựa chọn
     if (contentSelectionType === "url") {
@@ -368,7 +405,7 @@ function ScheduleFormModal({
       data.videoId = selectedContent.id; // Gán ID từ kho vào trường videoId
     } else if (contentSelectionType === "live") {
       data.sourceLive = formData.sourceLive || ""; // Gán RTMP link vào trường sourceLive
-    }    // Xử lý labels
+    } // Xử lý labels
     if (showLabel) {
       // Nếu bật label, tạo label tự động từ custom label hoặc title
       data.labels = [
@@ -387,24 +424,21 @@ function ScheduleFormModal({
       adId: ad.adId,
       startTime: ad.startTime,
       endTime: ad.endTime,
-    }));    // Gọi onSubmit từ component cha với data đã được cập nhật
+    })); // Gọi onSubmit từ component cha với data đã được cập nhật
     onSubmit(data);
-  };
-
-  const modalTitle = isEditing
-    ? isItemInPast(currentItem)
-      ? "Xem"
-      : "Chỉnh sửa"
-    : "Thêm mới";
-
-  const isDisabled = isEditing && isItemInPast(currentItem);
-  return (    <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-30">
+  }; // Xác định mode đơn giản dựa trên prop mode
+  const modalTitle =
+    mode === "add" ? "Thêm mới" : mode === "edit" ? "Chỉnh sửa" : "Xem";
+  const isDisabled = mode === "view";
+  const isViewMode = mode === "view";
+  return (
+    <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-30">
       <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold text-white">
             {modalTitle} lịch phát sóng
           </h2>
-          <button 
+          <button
             onClick={onClose}
             className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-gray-700 rounded"
             title="Đóng"
@@ -470,7 +504,9 @@ function ScheduleFormModal({
           </div>
           <div className="space-y-2 mt-1">
             <div className="block text-gray-200 mb-2">Chọn nội dung</div>
-            <div className="space-y-3">              {/* Toggle content selection type */}
+            <div className="space-y-3">
+              {" "}
+              {/* Toggle content selection type */}
               <div className="flex border border-gray-600 rounded overflow-hidden mb-3">
                 <button
                   type="button"
@@ -535,7 +571,8 @@ function ScheduleFormModal({
                     className="w-full px-3 py-3 bg-gray-700 text-white focus:outline-none border-none"
                     placeholder="http://example.com/video.mp4"
                     disabled={isDisabled}
-                  />                </div>
+                  />{" "}
+                </div>
               )}
               {/* Live Stream Input */}
               {contentSelectionType === "live" && (
@@ -604,7 +641,8 @@ function ScheduleFormModal({
               {/* Trường ẩn cho videoId khi chọn từ kho nội dung */}
               {contentSelectionType === "library" && (
                 <input type="hidden" {...register("videoId")} />
-              )}              {errors.videoPath && contentSelectionType === "url" && (
+              )}{" "}
+              {errors.videoPath && contentSelectionType === "url" && (
                 <span className="text-red-400 text-sm">
                   {errors.videoPath.message}
                 </span>
@@ -629,6 +667,7 @@ function ScheduleFormModal({
             </div>
             <div className="space-y-3">
               <div className="border border-gray-600 rounded p-2 bg-gray-700">
+                {" "}
                 {scheduleAds.length > 0 ? (
                   <div className="space-y-2">
                     {scheduleAds.map((ad, index) => (
@@ -660,10 +699,11 @@ function ScheduleFormModal({
                   </div>
                 ) : (
                   <div className="text-center py-2 text-gray-400">
-                    Chưa có quảng cáo nào được thêm
+                    {isViewMode
+                      ? "Không có quảng cáo nào"
+                      : "Chưa có quảng cáo nào được thêm"}
                   </div>
                 )}
-
                 {!isDisabled && (
                   <button
                     type="button"
@@ -678,7 +718,8 @@ function ScheduleFormModal({
             </div>
           </div>
           {/* Thêm field ẩn để lưu trữ thông tin labels */}
-          <input type="hidden" {...register("labels")} />          {/* Checkbox hiển thị label */}
+          <input type="hidden" {...register("labels")} />{" "}
+          {/* Checkbox hiển thị label */}
           <div className="space-y-3">
             <div className="flex items-center">
               <input
@@ -696,7 +737,7 @@ function ScheduleFormModal({
                 Hiển thị nhãn chương trình
               </label>
             </div>
-            
+
             {/* Khi bật hiển thị label, cho phép chỉnh sửa */}
             {showLabel && (
               <div>
@@ -716,22 +757,21 @@ function ScheduleFormModal({
                 </div>
               </div>
             )}
-          </div>
+          </div>{" "}
           <div className="flex justify-end space-x-3 pt-5 mt-4 border-t border-gray-700">
             <button
               type="button"
               onClick={onClose}
               className="px-5 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition-colors flex items-center"
             >
-              {isDisabled ? "Đóng" : "Hủy"}
-            </button>
-
-            {!isDisabled && (
+              {isViewMode ? "Đóng" : "Hủy"}
+            </button>{" "}
+            {!isViewMode && (
               <button
                 type="submit"
                 className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors flex items-center"
               >
-                {isEditing ? (
+                {mode === "edit" ? (
                   <>
                     <FaCheck className="mr-2" /> Cập nhật
                   </>
@@ -745,7 +785,8 @@ function ScheduleFormModal({
             )}
           </div>
         </form>
-      </div>      {/* Sử dụng component ContentLibraryModal */}
+      </div>{" "}
+      {/* Sử dụng component ContentLibraryModal */}
       <ContentLibraryModal
         isOpen={showContentLibraryPopup}
         onClose={() => setShowContentLibraryPopup(false)}
@@ -754,7 +795,8 @@ function ScheduleFormModal({
         selectedContent={selectedContent}
         handleSelectContent={handleSelectContent}
         categories={categories}
-      />      {/* Sử dụng component AdsSelectionModal */}
+      />{" "}
+      {/* Sử dụng component AdsSelectionModal */}
       <AdsSelectionModal
         isOpen={showAdsPopup}
         onClose={() => setShowAdsPopup(false)}

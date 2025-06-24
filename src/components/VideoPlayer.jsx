@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import videojs from "video.js";
 import "video.js/dist/video-js.css";
 import "videojs-contrib-quality-levels";
@@ -27,22 +27,83 @@ function VideoPlayer() {
   const [error, setError] = useState(null);
   const [currentTime, setCurrentTime] = useState(dayjs()); // Theo dõi thời gian hiện tại
   const [channelName, setChannelName] = useState(""); // Thêm state cho tên kênh
-  const [videoHeight, setVideoHeight] = useState(0); // State để lưu chiều cao video
+  const [videoHeight, setVideoHeight] = useState(0); // State để lưu chiều cao video  // State cho VOD
+  const [vodData, setVodData] = useState(null);
+  const [vodLoading, setVodLoading] = useState(false);
+  // State cho channels
+  const [channels, setChannels] = useState([]);
+  const [channelsLoading, setChannelsLoading] = useState(false);
 
   const isLive = !!channelId;
-  const hlsUrl = isLive
-    ? `${import.meta.env.VITE_BACKEND_URL}/hls/${channelId}/master.m3u8`
-    : videoId
-    ? `http://167.172.78.132:8080/vod/${videoId}.m3u8`
-    : "";
 
+  // Xử lý URL cho VOD và Live
+  const getStreamUrl = () => {
+    if (isLive) {
+      return `${import.meta.env.VITE_BACKEND_URL}/hls/${channelId}/master.m3u8`;
+    } else if (vodData && vodData.playlistUrl) {
+      // Thay đổi domain của playlistUrl về VITE_BACKEND_URL
+      const url = new URL(vodData.playlistUrl);
+      return `${import.meta.env.VITE_BACKEND_URL}${url.pathname}`;
+    }
+    return "";
+  };
+
+  const hlsUrl = getStreamUrl();
   useEffect(() => {
     // Fetch schedule for live channel
     if (isLive) {
       fetchChannelSchedule(channelId);
       fetchChannelInfo(channelId); // Lấy thông tin kênh từ API
+    } else if (videoId) {
+      // Fetch VOD data for video
+      fetchVodData(videoId);
+      // Fetch channels list for VOD sidebar
+      fetchChannels();
     }
-  }, [channelId, isLive]);
+  }, [channelId, videoId, isLive]);
+  // Thêm function để fetch VOD data
+  const fetchVodData = async (vodId) => {
+    setVodLoading(true);
+    try {
+      const response = await axios.get(`${API_BASE_URL}/vods/${vodId}`);
+      if (response.data.code === 200) {
+        setVodData(response.data.data);
+      } else {
+        console.error("Error fetching VOD:", response.data.message);
+        setError("Không thể tải thông tin video");
+      }
+    } catch (error) {
+      console.error("Error fetching VOD data:", error);
+      setError("Lỗi khi tải thông tin video");
+    } finally {
+      setVodLoading(false);
+    }
+  };
+
+  // Thêm function để fetch channels
+  const fetchChannels = async () => {
+    setChannelsLoading(true);
+    try {
+      const response = await axios.get(`${API_BASE_URL}/channels`);
+      if (response.data.code === 200) {
+        const channelsData = response.data.data || [];
+        const mappedChannels = channelsData.map((channel) => ({
+          id: channel.id,
+          title: channel.channelName,
+          thumbnail: channel.thumbnail,
+        }));
+        setChannels(mappedChannels);
+      } else {
+        console.error("Error fetching channels:", response.data.message);
+        setChannels([]);
+      }
+    } catch (error) {
+      console.error("Error fetching channels:", error);
+      setChannels([]);
+    } finally {
+      setChannelsLoading(false);
+    }
+  };
 
   // Thêm useEffect để cập nhật trạng thái "Đang chiếu" mỗi 10 giây cho VideoPlayer
   useEffect(() => {
@@ -111,22 +172,21 @@ function VideoPlayer() {
       setLoading(false);
     }
   };
-
   useEffect(() => {
     const videoElement = videoRef.current;
 
-    if (videoElement && !playerRef.current) {
+    if (videoElement && !playerRef.current && hlsUrl) {
       const player = (playerRef.current = videojs(videoElement, {
         autoplay: true,
         controls: true,
         responsive: true,
         fluid: false,
         aspectRatio: "16:9",
-        liveui: true,
+        liveui: isLive,
         sources: [{ src: hlsUrl, type: "application/x-mpegURL" }],
         controlBar: {
-          liveDisplay: true,
-          seekToLive: true,
+          liveDisplay: isLive,
+          seekToLive: isLive,
           progressControl: {
             seekBar: true,
           },
@@ -199,7 +259,7 @@ function VideoPlayer() {
   useEffect(() => {
     const videoElement = videoRef.current;
 
-    if (videoElement && playerRef.current) {
+    if (videoElement && playerRef.current && hlsUrl) {
       const player = playerRef.current;
 
       // Cập nhật lại nguồn phát và tự động phát
@@ -207,14 +267,14 @@ function VideoPlayer() {
 
       // Sử dụng player.ready() với callback thay vì Promise
       player.ready(() => {
-        if (isLive) {
+        if (isLive || (!isLive && vodData)) {
           player.play().catch((error) => {
             console.error("Error while trying to play the video:", error);
           });
         }
       });
     }
-  }, [hlsUrl, isLive]);
+  }, [hlsUrl, isLive, vodData]);
 
   return (
     <div className="bg-gray-900 min-h-screen">
@@ -226,33 +286,41 @@ function VideoPlayer() {
             <h1 className="text-3xl font-bold text-white">{channelName}</h1>
           </div>
         )}
-        {!isLive && (
-          <button
-            onClick={() => navigate("/")}
-            className="mb-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
-          >
-            Quay lại
-          </button>
-        )}{" "}
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Video Player */}
           <div className="lg:w-2/3">
-            <div data-vjs-player className="rounded-lg overflow-hidden">
-              <video
-                ref={videoRef}
-                className="video-js vjs-default-skin vjs-big-play-centered"
-              />
-            </div>
-
-            {!isLive && videoId && (
-              <div className="mt-4 p-4 bg-gray-800 rounded-lg">
-                <h2 className="text-2xl font-bold text-white mb-2">
-                  Thông tin video
-                </h2>
-                <p className="text-gray-300">Video ID: {videoId}</p>
+            {/* Hiển thị loading cho VOD */}
+            {!isLive && vodLoading && (
+              <div className="flex justify-center py-10">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
               </div>
             )}
-          </div>
+            {/* Hiển thị error */}
+            {error && (
+              <div className="p-4 bg-red-900 bg-opacity-50 text-red-100 rounded mb-4">
+                {error}
+              </div>
+            )}
+            {/* Video Player */}
+            {(isLive || (!isLive && vodData && !vodLoading)) && (
+              <div data-vjs-player className="rounded-lg overflow-hidden">
+                <video
+                  ref={videoRef}
+                  className="video-js vjs-default-skin vjs-big-play-centered"
+                />
+              </div>
+            )}{" "}
+            {!isLive && vodData && (
+              <div className="mt-4 p-4 bg-gray-800 rounded-lg">
+                <h2 className="text-2xl font-bold text-white mb-2">
+                  {vodData.title || `VOD ${vodData.id}`}
+                </h2>
+                {vodData.description && (
+                  <p className="text-gray-300 mb-2">{vodData.description}</p>
+                )}
+              </div>
+            )}
+          </div>{" "}
           {/* Schedule Section - Hiển thị bên phải khi là kênh live */}
           {isLive && (
             <div
@@ -329,6 +397,56 @@ function VideoPlayer() {
                       )}
                     </tbody>
                   </table>
+                </div>
+              )}
+            </div>
+          )}{" "}
+          {/* FAST Channels Section - Hiển thị bên phải khi là VOD */}
+          {!isLive && (
+            <div className="lg:w-1/3">
+              {channelsLoading ? (
+                <div className="flex justify-center py-10">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {channels.length > 0 ? (
+                    channels.map((channel) => (
+                      <Link
+                        key={channel.id}
+                        to={`/live/${channel.id}`}
+                        className="flex bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-700 transition-colors duration-200"
+                      >
+                        <div className="flex-shrink-0">
+                          <img
+                            src={channel.thumbnail}
+                            alt={channel.title}
+                            className="w-40 h-24 object-cover"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src =
+                                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='96' viewBox='0 0 160 96'%3E%3Crect width='160' height='96' fill='%23374151'/%3E%3Ctext x='80' y='52' font-family='Arial' font-size='14' fill='white' text-anchor='middle'%3E" +
+                                channel.title.substring(0, 2).toUpperCase() +
+                                "%3C/text%3E%3C/svg%3E";
+                            }}
+                          />
+                        </div>
+                        <div className="flex-1 p-3 min-w-0">
+                          <h3 className="text-white font-medium text-sm line-clamp-2 mb-1">
+                            {channel.title}
+                          </h3>
+                          <div className="flex items-center text-xs text-gray-400">
+                            <span className="inline-block w-1.5 h-1.5 bg-red-500 rounded-full mr-1.5 animate-pulse"></span>
+                            <span>Live</span>
+                          </div>
+                        </div>
+                      </Link>
+                    ))
+                  ) : (
+                    <div className="text-center py-10">
+                      <p className="text-gray-400 text-sm">Không có kênh nào</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

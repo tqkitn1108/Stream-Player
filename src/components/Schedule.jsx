@@ -34,6 +34,7 @@ function Schedule() {
   const [isEditing, setIsEditing] = useState(false);
   const [currentItem, setCurrentItem] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState("add"); // Thêm state cho mode: "add", "edit", "view"
   const [hasChanges, setHasChanges] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -198,6 +199,8 @@ function Schedule() {
 
     const endDateTime = startDateTime.add(30, "minute");
 
+    setModalMode("add");
+    setCurrentItem(null);
     setIsEditing(false);
     setFormData({
       startTime: startDateTime.format("YYYY-MM-DDTHH:mm:ss"),
@@ -209,14 +212,21 @@ function Schedule() {
     });
     setIsModalOpen(true);
   };
+
   const openEditModal = (item) => {
     // Kiểm tra xem lịch đã phát hoặc đang phát
     const isPast = isItemInPast(item);
     const isCurrent = isItemCurrent(item);
 
-    // Nếu lịch đã phát hoặc đang phát, chỉ cho phép xem (không cho phép chỉnh sửa)
-    setIsEditing(!(isPast || isCurrent));
+    // Xác định mode dựa trên trạng thái của item
+    if (isPast || isCurrent) {
+      setModalMode("view");
+    } else {
+      setModalMode("edit");
+    }
+
     setCurrentItem(item);
+    setIsEditing(!(isPast || isCurrent));
 
     // Format datetime với dayjs
     const startTime = dayjs(item.startTime).format("YYYY-MM-DDTHH:mm:ss");
@@ -907,7 +917,7 @@ function Schedule() {
           )}
         </div>
       </div>
-      {/* Sử dụng component ScheduleFormModal */}
+      {/* Sử dụng component ScheduleFormModal */}{" "}
       <ScheduleFormModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -917,6 +927,7 @@ function Schedule() {
         isEditing={isEditing}
         currentItem={currentItem}
         isItemInPast={isItemInPast}
+        mode={modalMode}
       />
       {/* Modal dừng lịch hiện tại */}
       <StopCurrentModal
