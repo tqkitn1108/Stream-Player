@@ -10,29 +10,34 @@ function Navbar() {
   const [managementMenuOpen, setManagementMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [authenticated, setAuthenticated] = useState(isAuthenticated());
-  // Kiểm tra người dùng có quyền ADMIN hoặc EDITOR
-  const [isAdminOrEditor, setIsAdminOrEditor] = useState(
-    hasRole('ADMIN') || hasRole('EDITOR')
-  );
+  // Kiểm tra người dùng có quyền ADMIN hoặc EDITOR (cho video management và scheduling)
+  const [isAdminOrEditor, setIsAdminOrEditor] = useState(false);
   
-  // Kiểm tra người dùng có quyền ADMIN hoặc MODERATOR
-  const [isAdminOrModerator, setIsAdminOrModerator] = useState(
-    hasRole('ADMIN') || hasRole('MODERATOR')
-  );
+  // Kiểm tra người dùng có quyền ADMIN hoặc MODERATOR (cho ad management)
+  const [isAdminOrModerator, setIsAdminOrModerator] = useState(false);
+  
+  // Kiểm tra quyền truy cập menu quản lý (ADMIN, EDITOR có thể truy cập video, ADMIN, MODERATOR có thể truy cập ads)
+  const [hasManagementAccess, setHasManagementAccess] = useState(false);
 
   // Cập nhật thông tin user khi component mount và khi trạng thái xác thực thay đổi
   useEffect(() => {
     const updateUserInfo = () => {
       const isAuth = isAuthenticated();
       setAuthenticated(isAuth);
-        if (isAuth) {
+      if (isAuth) {
         setUser(getUser());
-        setIsAdminOrEditor(hasRole('ADMIN') || hasRole('EDITOR'));
-        setIsAdminOrModerator(hasRole('ADMIN') || hasRole('MODERATOR'));
+        const adminOrEditor = hasRole('ADMIN') || hasRole('EDITOR');
+        const adminOrModerator = hasRole('ADMIN') || hasRole('MODERATOR');
+        
+        setIsAdminOrEditor(adminOrEditor);
+        setIsAdminOrModerator(adminOrModerator);
+        // Có quyền quản lý nếu là ADMIN, EDITOR hoặc MODERATOR
+        setHasManagementAccess(hasRole('ADMIN') || hasRole('EDITOR') || hasRole('MODERATOR'));
       } else {
         setUser(null);
         setIsAdminOrEditor(false);
         setIsAdminOrModerator(false);
+        setHasManagementAccess(false);
       }
     };
 
@@ -143,72 +148,64 @@ function Navbar() {
               <FaFilm className="text-lg" />
               <span>Videos</span>
             </Link>
-              {/* Chỉ hiển thị menu Lịch phát sóng và Upload Video khi là ADMIN hoặc EDITOR */}
+              {/* Chỉ hiển thị menu Lịch phát sóng khi là ADMIN hoặc EDITOR */}
             {isAdminOrEditor && (
-              <>
-                <Link
-                  to="/schedule"
-                  className={`flex items-center space-x-1 text-sm font-medium transition-colors ${isActive('/schedule') ? 'text-indigo-400 border-b-2 border-indigo-400 pb-1' : 'text-gray-300 hover:text-white'}`}
+              <Link
+                to="/schedule"
+                className={`flex items-center space-x-1 text-sm font-medium transition-colors ${isActive('/schedule') ? 'text-indigo-400 border-b-2 border-indigo-400 pb-1' : 'text-gray-300 hover:text-white'}`}
+              >
+                <FaCalendarAlt className="text-lg" />
+                <span>Lịch phát sóng</span>
+              </Link>
+            )}
+            
+            {/* Dropdown menu cho Quản lý - hiển thị khi có quyền quản lý */}
+            {hasManagementAccess && (
+              <div className="relative management-menu-container">
+                <button
+                  onClick={toggleManagementMenu}
+                  onMouseEnter={() => setManagementMenuOpen(true)}
+                  className={`flex items-center space-x-1 text-sm font-medium transition-colors ${
+                    isManagementActive() 
+                      ? 'text-indigo-400 border-b-2 border-indigo-400 pb-1' 
+                      : 'text-gray-300 hover:text-white'
+                  }`}
                 >
-                  <FaCalendarAlt className="text-lg" />
-                  <span>Lịch phát sóng</span>
-                </Link>
+                  <FaCog className="text-lg" />
+                  <span>Quản lý</span>
+                  <FaChevronDown className="text-xs" />
+                </button>
                 
-                {/* Dropdown menu cho Quản lý */}
-                {(isAdminOrEditor || isAdminOrModerator) && (
-                  <div className="relative management-menu-container">
-                    <button
-                      onClick={toggleManagementMenu}
-                      onMouseEnter={() => setManagementMenuOpen(true)}
-                      className={`flex items-center space-x-1 text-sm font-medium transition-colors ${
-                        isManagementActive() 
-                          ? 'text-indigo-400 border-b-2 border-indigo-400 pb-1' 
-                          : 'text-gray-300 hover:text-white'
-                      }`}
-                    >
-                      <FaCog className="text-lg" />
-                      <span>Quản lý</span>
-                      <FaChevronDown className="text-xs" />
-                    </button>
-                    
-                    {managementMenuOpen && (
-                      <div 
-                        className="absolute top-full left-0 mt-2 w-48 bg-gray-800 rounded-md shadow-lg py-1 z-50"
-                        onMouseLeave={() => setManagementMenuOpen(false)}
+                {managementMenuOpen && (
+                  <div 
+                    className="absolute top-full left-0 mt-2 w-48 bg-gray-800 rounded-md shadow-lg py-1 z-50"
+                    onMouseLeave={() => setManagementMenuOpen(false)}
+                  >
+                    {/* Kho nội dung - chỉ ADMIN và EDITOR */}
+                    {isAdminOrEditor && (
+                      <Link
+                        to="/video-management"
+                        className="flex items-center px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+                        onClick={() => setManagementMenuOpen(false)}
                       >
-                        {isAdminOrEditor && (
-                          <Link
-                            to="/video-management"
-                            className="flex items-center px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
-                            onClick={() => setManagementMenuOpen(false)}
-                          >
-                            <FaPlay className="mr-2 text-lg" />
-                            Kho nội dung
-                          </Link>
-                        )}
-                        {isAdminOrModerator && (
-                          <Link
-                            to="/ads"
-                            className="flex items-center px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
-                            onClick={() => setManagementMenuOpen(false)}
-                          >
-                            <FaAd className="mr-2 text-lg" />
-                            Quản lý quảng cáo
-                          </Link>
-                        )}
-                      </div>
+                        <FaPlay className="mr-2 text-lg" />
+                        Kho nội dung
+                      </Link>
+                    )}
+                    {/* Quản lý quảng cáo - ADMIN, MODERATOR và EDITOR (EDITOR có thể upload, MODERATOR xét duyệt) */}
+                    {(isAdminOrModerator || hasRole('EDITOR')) && (
+                      <Link
+                        to="/ads"
+                        className="flex items-center px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+                        onClick={() => setManagementMenuOpen(false)}
+                      >
+                        <FaAd className="mr-2 text-lg" />
+                        Quản lý quảng cáo
+                      </Link>
                     )}
                   </div>
                 )}
-                
-                <Link
-                  to="/upload"
-                  className={`flex items-center space-x-1 text-sm font-medium transition-colors ${isActive('/upload') ? 'text-indigo-400 border-b-2 border-indigo-400 pb-1' : 'text-gray-300 hover:text-white'}`}
-                >
-                  <FaUpload className="text-lg" />
-                  <span>Upload Video</span>
-                </Link>
-              </>
+              </div>
             )}
           </div>
 

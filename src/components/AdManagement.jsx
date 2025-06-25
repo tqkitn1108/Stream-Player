@@ -15,6 +15,7 @@ import AdUploadModal from "./AdUploadModal";
 import AdEditModal from "./AdEditModal";
 import ThumbnailImage from "./ThumbnailImage";
 import axios from "axios";
+import { hasRole } from "../services/keycloak";
 
 // We'll fetch categories and ads from the API
 // API URL constants
@@ -44,6 +45,13 @@ function AdManagement() {
     status: "all",
     search: "",
   });
+  
+  // Kiểm tra quyền của user
+  const isAdmin = hasRole('ADMIN');
+  const isModerator = hasRole('MODERATOR');
+  const isEditor = hasRole('EDITOR');
+  const canUpload = isAdmin || isEditor; // ADMIN và EDITOR có thể upload
+  const canModerate = isAdmin || isModerator; // ADMIN và MODERATOR có thể xét duyệt
   // Fetch categories from API
   useEffect(() => {
     const fetchCategories = async () => {
@@ -314,13 +322,15 @@ function AdManagement() {
         <div className="bg-gray-800 rounded-lg p-6 shadow-lg">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold text-white">Quản lý quảng cáo</h1>
-            <button
-              onClick={() => setIsUploadModalOpen(true)}
-              className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition"
-            >
-              <FaPlus className="mr-2" />
-              Thêm quảng cáo mới
-            </button>
+            {canUpload && (
+              <button
+                onClick={() => setIsUploadModalOpen(true)}
+                className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition"
+              >
+                <FaPlus className="mr-2" />
+                Thêm quảng cáo mới
+              </button>
+            )}
           </div>
 
           {/* Filter controls */}
@@ -476,24 +486,33 @@ function AdManagement() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex justify-end space-x-2">
-                            <button
-                              onClick={() => {
-                                setSelectedAd(ad);
-                                setIsEditModalOpen(true);
-                              }}
-                              className="text-indigo-400 hover:text-indigo-300"
-                              title="Chỉnh sửa"
-                            >
-                              <FaEdit />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteAd(ad.id)}
-                              className="text-red-400 hover:text-red-300"
-                              title="Xóa"
-                            >
-                              <FaTrashAlt />
-                            </button>
-                            {ad.status === "pending" && (
+                            {/* Chỉnh sửa - chỉ cho ADMIN và EDITOR (hoặc người tạo) */}
+                            {(canUpload || isAdmin) && (
+                              <button
+                                onClick={() => {
+                                  setSelectedAd(ad);
+                                  setIsEditModalOpen(true);
+                                }}
+                                className="text-indigo-400 hover:text-indigo-300"
+                                title="Chỉnh sửa"
+                              >
+                                <FaEdit />
+                              </button>
+                            )}
+                            
+                            {/* Xóa - chỉ ADMIN */}
+                            {isAdmin && (
+                              <button
+                                onClick={() => handleDeleteAd(ad.id)}
+                                className="text-red-400 hover:text-red-300"
+                                title="Xóa"
+                              >
+                                <FaTrashAlt />
+                              </button>
+                            )}
+                            
+                            {/* Duyệt/Từ chối - chỉ ADMIN và MODERATOR */}
+                            {ad.status === "pending" && canModerate && (
                               <>
                                 <button
                                   onClick={() => handleApproveAd(ad.id)}
