@@ -1,5 +1,10 @@
 import { useState, useEffect } from 'react';
-import { initKeycloak, isAuthenticated } from '../services/keycloak';
+import { 
+  initKeycloak, 
+  isAuthenticated, 
+  isKeycloakInitialized,
+  waitForKeycloakInit 
+} from '../services/keycloak';
 import { debugKeycloak } from '../utils/keycloakDebug';
 
 /**
@@ -19,11 +24,23 @@ const useKeycloakAuth = () => {
 
     const initializeAuth = async () => {
       try {
-        console.log('Initializing authentication...');
-        console.log('Current URL:', window.location.href);
+        console.log('useKeycloakAuth: Initializing authentication...');
+        console.log('useKeycloakAuth: Current URL:', window.location.href);
+        console.log('useKeycloakAuth: Keycloak initialized?', isKeycloakInitialized());
         
-        // Thử khôi phục authentication state từ token đã lưu
-        const { authenticated } = await initKeycloak();
+        let authenticated = false;
+        
+        // Kiểm tra xem Keycloak đã được khởi tạo chưa
+        if (isKeycloakInitialized()) {
+          console.log('useKeycloakAuth: Keycloak already initialized, waiting for completion...');
+          const result = await waitForKeycloakInit();
+          authenticated = result.authenticated;
+        } else {
+          console.log('useKeycloakAuth: Initializing Keycloak...');
+          // Thử khôi phục authentication state từ token đã lưu
+          const result = await initKeycloak();
+          authenticated = result.authenticated;
+        }
         
         if (isMounted) {
           setAuthState({
@@ -32,7 +49,8 @@ const useKeycloakAuth = () => {
             loading: false,
             error: null
           });
-            console.log('Authentication initialized:', { 
+          
+          console.log('useKeycloakAuth: Authentication initialized:', { 
             authenticated, 
             url: window.location.href,
             origin: window.location.origin 
@@ -44,7 +62,7 @@ const useKeycloakAuth = () => {
           }
         }
       } catch (error) {
-        console.error('Authentication initialization failed:', error);
+        console.error('useKeycloakAuth: Authentication initialization failed:', error);
         
         if (isMounted) {
           setAuthState({

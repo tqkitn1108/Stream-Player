@@ -29,6 +29,7 @@ const initKeycloak = () => {
       authenticated: !!keycloak.authenticated,
     });
   }
+  
   return new Promise((resolve, reject) => {
     // Lấy cấu hình cho môi trường hiện tại
     const currentEnv = getCurrentEnvironment();
@@ -38,6 +39,7 @@ const initKeycloak = () => {
     const redirectUriBase = getRedirectUriBase();
     
     console.log(`Initializing Keycloak for environment: ${currentEnv}`);
+    console.log('Current URL:', window.location.href);
     console.log('Environment config:', { 
       useSilentCheckSso, 
       enableIframeCheck, 
@@ -51,6 +53,8 @@ const initKeycloak = () => {
       checkLoginIframe: enableIframeCheck,
       pkceMethod: "S256",
       enableLogging: enableLogging,
+      // Đảm bảo redirect về đúng trang sau khi login
+      redirectUri: window.location.origin + window.location.pathname + window.location.search,
     };
 
     // Chỉ thêm silentCheckSsoRedirectUri nếu môi trường hỗ trợ
@@ -64,7 +68,11 @@ const initKeycloak = () => {
     keycloak
       .init(initConfig)
       .then((authenticated) => {
-        console.log('Keycloak initialization result:', { authenticated });
+        console.log('Keycloak initialization result:', { 
+          authenticated, 
+          currentUrl: window.location.href,
+          token: authenticated ? 'Present' : 'None'
+        });
         
         // Đánh dấu là đã khởi tạo
         keycloakInitialized = true;
@@ -72,6 +80,9 @@ const initKeycloak = () => {
         // Thiết lập token refresh nếu đã authenticated
         if (authenticated) {
           setupTokenRefresh();
+          console.log('User authenticated, roles:', getRoles());
+        } else {
+          console.log('User not authenticated');
         }
         
         // Đăng ký sự kiện khi token được cập nhật
@@ -88,6 +99,11 @@ const initKeycloak = () => {
       })
       .catch((error) => {
         console.error("Keycloak init error:", error);
+        console.error("Error details:", {
+          message: error.message,
+          stack: error.stack,
+          currentUrl: window.location.href
+        });
         
         // Ngay cả khi có lỗi, vẫn đánh dấu là đã thử khởi tạo
         // để tránh khởi tạo lại nhiều lần
@@ -128,6 +144,48 @@ const setupTokenRefresh = () => {
 const resetKeycloakState = () => {
   keycloakInitialized = false;
   console.log('Keycloak state has been reset');
+};
+
+/**
+ * Check if Keycloak is initialized
+ * @returns {boolean} Initialization status
+ */
+const isKeycloakInitialized = () => {
+  return keycloakInitialized;
+};
+
+/**
+ * Wait for Keycloak to be initialized
+ * @param {number} timeout - Timeout in milliseconds (default: 10000)
+ * @returns {Promise} Promise resolving when Keycloak is initialized
+ */
+const waitForKeycloakInit = (timeout = 10000) => {
+  return new Promise((resolve, reject) => {
+    if (keycloakInitialized) {
+      resolve({ authenticated: !!keycloak.authenticated });
+      return;
+    }
+
+    const startTime = Date.now();
+    const checkInterval = setInterval(() => {
+      if (keycloakInitialized) {
+        clearInterval(checkInterval);
+        resolve({ authenticated: !!keycloak.authenticated });
+      } else if (Date.now() - startTime > timeout) {
+        clearInterval(checkInterval);
+        reject(new Error('Keycloak initialization timeout'));
+      }
+    }, 100);
+  });
+};
+
+/**
+ * Force reinitialize Keycloak
+ * Use this when you need to reinitialize Keycloak (e.g., after configuration changes)
+ */
+const forceReinitKeycloak = () => {
+  keycloakInitialized = false;
+  return initKeycloak();
 };
 
 /**
@@ -246,6 +304,9 @@ export {
   getUserRoles,
   refreshToken,
   resetKeycloakState,
+  isKeycloakInitialized,
+  waitForKeycloakInit,
+  forceReinitKeycloak,
   isAdmin,
   isEditor,
   isModerator,

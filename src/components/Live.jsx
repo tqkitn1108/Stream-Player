@@ -67,7 +67,7 @@ function Live() {
             <div className="flex items-center justify-center mb-4">
               <FaStream className="text-4xl text-red-500 mr-3" />
               <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-red-500 to-pink-600 text-transparent bg-clip-text">
-                Kênh Live
+                Kênh FAST
               </h1>
             </div>
             <p className="text-xl text-gray-300 mb-8">

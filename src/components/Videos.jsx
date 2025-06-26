@@ -67,7 +67,7 @@ function Videos() {
             <div className="flex items-center justify-center mb-4">
               <FaFilm className="text-4xl text-indigo-500 mr-3" />
               <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-indigo-500 to-purple-600 text-transparent bg-clip-text">
-                Thư viện Video
+                Thư viện VOD
               </h1>
             </div>
             <p className="text-xl text-gray-300 mb-8">

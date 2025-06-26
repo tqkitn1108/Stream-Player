@@ -139,14 +139,14 @@ function Navbar() {
               className={`flex items-center space-x-1 text-sm font-medium transition-colors ${isActive('/live') ? 'text-indigo-400 border-b-2 border-indigo-400 pb-1' : 'text-gray-300 hover:text-white'}`}
             >
               <FaStream className="text-lg" />
-              <span>Kênh Live</span>
+              <span>Kênh FAST</span>
             </Link>
             <Link
               to="/videos"
               className={`flex items-center space-x-1 text-sm font-medium transition-colors ${isActive('/videos') ? 'text-indigo-400 border-b-2 border-indigo-400 pb-1' : 'text-gray-300 hover:text-white'}`}
             >
               <FaFilm className="text-lg" />
-              <span>Videos</span>
+              <span>VOD</span>
             </Link>
               {/* Chỉ hiển thị menu Lịch phát sóng khi là ADMIN hoặc EDITOR */}
             {isAdminOrEditor && (

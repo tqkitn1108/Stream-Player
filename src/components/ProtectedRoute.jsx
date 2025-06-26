@@ -1,6 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { isAuthenticated, hasRole, login } from '../services/keycloak';
+import { 
+  isAuthenticated, 
+  hasRole, 
+  login, 
+  initKeycloak, 
+  isKeycloakInitialized,
+  waitForKeycloakInit 
+} from '../services/keycloak';
 
 /**
  * Component bảo vệ route, kiểm tra người dùng đã đăng nhập và có quyền truy cập hay không
@@ -13,30 +20,62 @@ const ProtectedRoute = ({ children, requiredRoles = [] }) => {
   const location = useLocation();
   const [checking, setChecking] = useState(true);
   const [hasAccess, setHasAccess] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     // Kiểm tra trạng thái đăng nhập và quyền truy cập
     const checkAuth = async () => {
-      const authenticated = isAuthenticated();
-      
-      if (!authenticated) {
-        // Lưu lại URL hiện tại để sau khi đăng nhập quay lại
-        sessionStorage.setItem('redirectUri', location.pathname);
+      try {
+        console.log('ProtectedRoute: Checking auth for path:', location.pathname);
         
-        // Delay một chút trước khi chuyển hướng để tránh lỗi
+        // Đảm bảo Keycloak đã được khởi tạo
+        if (!isKeycloakInitialized()) {
+          console.log('ProtectedRoute: Keycloak not initialized, initializing...');
+          await initKeycloak();
+        } else {
+          // Đợi cho Keycloak hoàn thành khởi tạo
+          await waitForKeycloakInit();
+        }
+        
+        const authenticated = isAuthenticated();
+        console.log('ProtectedRoute: Authentication status:', authenticated);
+        
+        if (!authenticated) {
+          console.log('ProtectedRoute: User not authenticated, redirecting to login');
+          // Lưu lại URL hiện tại để sau khi đăng nhập quay lại
+          sessionStorage.setItem('redirectUri', location.pathname);
+          
+          // Delay một chút trước khi chuyển hướng để tránh lỗi
+          setTimeout(() => {
+            login({ redirectUri: window.location.origin + location.pathname });
+          }, 300);
+          
+          setChecking(false);
+          return;
+        }
+        
+        // Kiểm tra quyền
+        const hasRequiredRole = requiredRoles.length === 0 || 
+                               requiredRoles.some(role => hasRole(role));
+        
+        console.log('ProtectedRoute: Role check result:', {
+          requiredRoles,
+          hasRequiredRole,
+          userRoles: requiredRoles.length > 0 ? 'checking roles...' : 'no roles required'
+        });
+        
+        setHasAccess(hasRequiredRole);
+        setChecking(false);
+      } catch (error) {
+        console.error('ProtectedRoute: Error during auth check:', error);
+        setError(error.message);
+        setChecking(false);
+        
+        // Nếu có lỗi trong quá trình khởi tạo, thử redirect về login
         setTimeout(() => {
           login({ redirectUri: window.location.origin + location.pathname });
-        }, 300);
-        
-        setChecking(false);
-        return;
+        }, 1000);
       }
-      
-      // Kiểm tra quyền
-      const hasRequiredRole = requiredRoles.length === 0 || 
-                             requiredRoles.some(role => hasRole(role));
-      setHasAccess(hasRequiredRole);
-      setChecking(false);
     };
     
     checkAuth();
@@ -48,6 +87,13 @@ const ProtectedRoute = ({ children, requiredRoles = [] }) => {
       <div className="text-center">
         <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-indigo-500 mx-auto mb-4"></div>
         <h2 className="text-2xl font-semibold">Đang kiểm tra quyền truy cập...</h2>
+        <p className="text-gray-400 mt-2">Vui lòng đợi...</p>
+        {error && (
+          <div className="mt-4 p-3 bg-red-800 text-red-200 rounded">
+            <p className="text-sm">Lỗi: {error}</p>
+            <p className="text-xs mt-1">Đang thử kết nối lại...</p>
+          </div>
+        )}
       </div>
     </div>;
   }

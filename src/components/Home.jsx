@@ -146,8 +146,8 @@ function VideoList() {
           {/* Live Channels Section */}
           <div className="mb-10">
             <h2 className="text-2xl font-semibold text-white mb-6">
-              Kênh Live
-            </h2>{" "}
+              Kênh FAST
+            </h2>
             {loadingChannels ? (
               <div className="flex justify-center py-10">
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
