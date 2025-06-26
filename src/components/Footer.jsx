@@ -5,7 +5,9 @@ const Footer = () => {
         <div className="flex flex-col md:flex-row justify-between">
           <div className="mb-6 md:mb-0">
             <h2 className="text-2xl font-bold text-indigo-400 mb-4">FAST360</h2>
-            <p className="text-gray-400">Nền tảng phát trực tuyến hàng đầu</p>
+            <p className="text-gray-400">
+              Giải pháp nền tảng theo mô hình FAST
+            </p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-8">
             <div>
@@ -13,7 +15,7 @@ const Footer = () => {
               <ul className="space-y-2 text-gray-400">
                 <li>
                   <a href="#" className="hover:text-indigo-400">
-                    Về chúng tôi
+                    Thông tin
                   </a>
                 </li>
                 <li>
@@ -23,7 +25,7 @@ const Footer = () => {
                 </li>
                 <li>
                   <a href="#" className="hover:text-indigo-400">
-                    Tin tức
+                    Hướng dẫn
                   </a>
                 </li>
               </ul>

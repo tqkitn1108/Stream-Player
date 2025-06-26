@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
 import { Swiper, SwiperSlide } from "swiper/react";
@@ -15,32 +15,30 @@ function VideoList() {
   const [videos, setVideos] = useState([]);
   const [channels, setChannels] = useState([]);
   const [loadingChannels, setLoadingChannels] = useState(false);
-  const navigate = useNavigate();
 
-  const API_BASE_URL = `${import.meta.env.VITE_BACKEND_URL}/api/v1` || "http://34.126.102.97:8080/api/v1";
+  const API_BASE_URL =
+    `${import.meta.env.VITE_BACKEND_URL}/api/v1` ||
+    "http://34.126.102.97:8080/api/v1";
 
-  // Sửa phần bannerSlides trong VideoList.jsx
   const bannerSlides = [
     {
       id: 1,
-      image: fc1, // Sử dụng ảnh local đã import
-      title: "Khám phá bộ sưu tập phim hành động mới nhất",
+      image: fc1,
+      title: "Xem truyền hình miễn phí qua internet",
     },
     {
       id: 2,
-      image: "https://picsum.photos/1920/1080?random=1", // Thay thế bằng ảnh từ picsum
-      title: "Những câu chuyện cảm động nhất",
+      image: "https://picsum.photos/1920/1080?random=1",
+      title: "Trải nghiệm liền mạch như truyền hình truyền thống",
     },
     {
       id: 3,
-      image: "https://picsum.photos/1920/1080?random=2", // Thay thế bằng ảnh từ picsum
-      title: "Giải trí cho mọi lứa tuổi",
-    },  ];
+      image: "https://picsum.photos/1920/1080?random=2",
+      title: "Các kênh chuyên biệt theo từng loại nội dung, phù hợp cho mọi lứa tuổi",
+    },
+  ];
   useEffect(() => {
-    // Lấy danh sách VOD từ API
     fetchVideos();
-
-    // Lấy danh sách channels từ API
     fetchChannels();
   }, []);
 
@@ -57,7 +55,7 @@ function VideoList() {
           // Map other relevant fields as needed
           description: vod.description,
           duration: vod.duration,
-          createdAt: vod.createdAt
+          createdAt: vod.createdAt,
         }));
         setVideos(mappedVideos);
       } else {
@@ -79,7 +77,9 @@ function VideoList() {
         const mappedChannels = channelsData.map((channel) => ({
           id: channel.id,
           title: channel.channelName,
-          hlsUrl: `${import.meta.env.VITE_BACKEND_URL}/${channel.id}/master.m3u8`,
+          hlsUrl: `${import.meta.env.VITE_BACKEND_URL}/${
+            channel.id
+          }/master.m3u8`,
           thumbnail: channel.thumbnail || fc1, // Fallback về fc1 nếu không có thumbnail
         }));
         setChannels(mappedChannels);
@@ -142,11 +142,13 @@ function VideoList() {
           {/* Header - Loại bỏ nút Upload */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-white">Khám phá nội dung</h1>
-          </div>          {/* Live Channels Section */}
+          </div>{" "}
+          {/* Live Channels Section */}
           <div className="mb-10">
             <h2 className="text-2xl font-semibold text-white mb-6">
               Kênh Live
-            </h2>            {loadingChannels ? (
+            </h2>{" "}
+            {loadingChannels ? (
               <div className="flex justify-center py-10">
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
               </div>
@@ -184,9 +186,12 @@ function VideoList() {
                 <p className="text-gray-400">Không có kênh live nào</p>
               </div>
             )}
-          </div>          {/* VODs Section */}
+          </div>{" "}
+          {/* VODs Section */}
           <div className="mb-16">
-            <h2 className="text-2xl font-semibold text-white mb-6">Video on Demand (VOD)</h2>
+            <h2 className="text-2xl font-semibold text-white mb-6">
+              Video on Demand (VOD)
+            </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {videos.map((video) => (
                 <Link

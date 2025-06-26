@@ -26,10 +26,8 @@ function ScheduleFormModal({
   onClose,
   onSubmit,
   formData: initialFormData,
-  isEditing,
   currentItem,
-  isItemInPast,
-  mode = "add", // Thêm prop mode: "add", "edit", "view"
+  mode = "add", // mode: "add", "edit", "view"
 }) {
   if (!isOpen) return null;
   const [showLabel, setShowLabel] = useState(
@@ -40,13 +38,12 @@ function ScheduleFormModal({
       ? initialFormData.labels[0].name
       : initialFormData.title || ""
   ); // Thêm state cho content selection
-  const [contentSelectionType, setContentSelectionType] = useState("url"); // "url", "library", hoặc "live"
+  const [contentSelectionType, setContentSelectionType] = useState("url"); // "url", "library","live"
   const [contentLibrary, setContentLibrary] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loadingContent, setLoadingContent] = useState(false);
   const [selectedContent, setSelectedContent] = useState(null);
   const [showContentLibraryPopup, setShowContentLibraryPopup] = useState(false);
-  // State cho quảng cáo
   const [adsList, setAdsList] = useState([]);
   const [adsCategories, setAdsCategories] = useState([]);
   const [scheduleAds, setScheduleAds] = useState(initialFormData.ads || []);
@@ -72,17 +69,11 @@ function ScheduleFormModal({
 
   // Auto-sync custom label with title when title changes
   useEffect(() => {
-    if (currentTitle && !customLabel) {
+    if (selectedContent != null && currentTitle) {
       setCustomLabel(currentTitle);
     }
   }, [currentTitle]);
 
-  // Update custom label when title changes and custom label is empty or same as previous title
-  useEffect(() => {
-    if (currentTitle) {
-      setCustomLabel(currentTitle);
-    }
-  }, [currentTitle]);
   // Tự động detect content type khi form data thay đổi
   useEffect(() => {
     if (initialFormData.videoId) {
@@ -213,34 +204,8 @@ function ScheduleFormModal({
 
     setShowContentLibraryPopup(false);
   };
-  // Xử lý thêm quảng cáo (legacy - keep for compatibility)
-  const handleAddAd = (ad) => {
-    setCurrentAd(ad);
-    const formStartTime = watch("startTime");
-    const formEndTime = watch("endTime");
 
-    // Đặt thời gian bắt đầu quảng cáo mặc định (thời gian bắt đầu + 30s)
-    const defaultStartTime = dayjs(formStartTime).add(30, "second");
-    const defaultEndTime = dayjs(defaultStartTime).add(
-      ad.duration || 30,
-      "second"
-    );
-
-    // Kiểm tra không vượt quá thời gian kết thúc chương trình
-    const programEndTime = dayjs(formEndTime);
-
-    setAdStartTime(
-      defaultStartTime.isBefore(programEndTime)
-        ? defaultStartTime.format("YYYY-MM-DDTHH:mm:ss")
-        : formStartTime
-    );
-
-    setAdEndTime(
-      defaultEndTime.isBefore(programEndTime)
-        ? defaultEndTime.format("YYYY-MM-DDTHH:mm:ss")
-        : programEndTime.format("YYYY-MM-DDTHH:mm:ss")
-    );
-  }; // Xử lý thêm nhiều quảng cáo cùng lúc
+  // Xử lý thêm nhiều quảng cáo cùng lúc
   const handleAddMultipleAds = (adsToAdd, totalAdsDuration = 0) => {
     const validAds = [];
     const errors = [];
@@ -290,82 +255,6 @@ function ScheduleFormModal({
         setValue("endTime", newEndTime.format("YYYY-MM-DDTHH:mm:ss"));
       }
     }
-  };
-  // Kiểm tra và xác nhận thêm quảng cáo (legacy - keep for compatibility)
-  const confirmAddAd = () => {
-    // Reset lỗi
-    setAdErrors({});
-
-    if (!currentAd) {
-      setAdErrors({ ad: "Chưa chọn quảng cáo" });
-      return;
-    }
-
-    // Thời gian của chương trình
-    const programStartTime = dayjs(watch("startTime"));
-    const programEndTime = dayjs(watch("endTime"));
-
-    // Thời gian của quảng cáo
-    const adStart = dayjs(adStartTime);
-    const adEnd = dayjs(adEndTime);
-
-    // Kiểm tra thời gian quảng cáo nằm trong thời gian chương trình
-    if (adStart.isBefore(programStartTime)) {
-      setAdErrors({
-        startTime:
-          "Thời gian bắt đầu quảng cáo phải sau thời gian bắt đầu chương trình",
-      });
-      return;
-    }
-
-    if (adEnd.isAfter(programEndTime)) {
-      setAdErrors({
-        endTime:
-          "Thời gian kết thúc quảng cáo phải trước thời gian kết thúc chương trình",
-      });
-      return;
-    }
-
-    if (adStart.isAfter(adEnd) || adStart.isSame(adEnd)) {
-      setAdErrors({
-        startTime: "Thời gian bắt đầu phải trước thời gian kết thúc",
-      });
-      return;
-    }
-
-    // Kiểm tra không chồng lấn với quảng cáo khác
-    const overlapping = scheduleAds.some((existingAd) => {
-      const existingStart = dayjs(existingAd.startTime);
-      const existingEnd = dayjs(existingAd.endTime);
-
-      // Kiểm tra có chồng lấn không
-      return (
-        (adStart.isAfter(existingStart) && adStart.isBefore(existingEnd)) ||
-        (adEnd.isAfter(existingStart) && adEnd.isBefore(existingEnd)) ||
-        (adStart.isBefore(existingStart) && adEnd.isAfter(existingEnd)) ||
-        adStart.isSame(existingStart) ||
-        adEnd.isSame(existingEnd)
-      );
-    });
-
-    if (overlapping) {
-      setAdErrors({
-        overlap: "Quảng cáo này chồng lấn thời gian với quảng cáo khác",
-      });
-      return;
-    }
-
-    // Thêm quảng cáo vào danh sách
-    const newAd = {
-      adId: currentAd.id,
-      title: currentAd.title,
-      startTime: adStartTime,
-      endTime: adEndTime,
-    };
-
-    setScheduleAds([...scheduleAds, newAd]);
-    setShowAdsPopup(false);
-    setCurrentAd(null);
   };
 
   // Xóa quảng cáo
@@ -738,7 +627,6 @@ function ScheduleFormModal({
               </label>
             </div>
 
-            {/* Khi bật hiển thị label, cho phép chỉnh sửa */}
             {showLabel && (
               <div>
                 <label className="block text-gray-200 mb-2 text-sm">
@@ -785,8 +673,7 @@ function ScheduleFormModal({
             )}
           </div>
         </form>
-      </div>{" "}
-      {/* Sử dụng component ContentLibraryModal */}
+      </div>
       <ContentLibraryModal
         isOpen={showContentLibraryPopup}
         onClose={() => setShowContentLibraryPopup(false)}
@@ -795,8 +682,7 @@ function ScheduleFormModal({
         selectedContent={selectedContent}
         handleSelectContent={handleSelectContent}
         categories={categories}
-      />{" "}
-      {/* Sử dụng component AdsSelectionModal */}
+      />
       <AdsSelectionModal
         isOpen={showAdsPopup}
         onClose={() => setShowAdsPopup(false)}

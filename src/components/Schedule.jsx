@@ -39,6 +39,7 @@ function Schedule() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [newScheduleItems, setNewScheduleItems] = useState([]);
+  const [updatedScheduleItems, setUpdatedScheduleItems] = useState([]); // Theo dõi các lịch đã được cập nhật
   const [deletedIds, setDeletedIds] = useState([]); // Theo dõi các ID đã bị xóa
   const [isStopModalOpen, setIsStopModalOpen] = useState(false);
   const [currentPlayingItem, setCurrentPlayingItem] = useState(null);
@@ -47,6 +48,7 @@ function Schedule() {
   const [vodMapping, setVodMapping] = useState(new Map()); // Mapping giữa scheduleId và vodId
   const [existingVods, setExistingVods] = useState([]); // Danh sách VOD đã có từ server
   const [channels, setChannels] = useState([]); // Danh sách kênh từ API
+  const [selectedSchedulesToDelete, setSelectedSchedulesToDelete] = useState(new Set()); // Theo dõi các lịch được chọn để xóa
 
   // Form state
   const [formData, setFormData] = useState({
@@ -103,7 +105,7 @@ function Schedule() {
   }, [selectedDate]);
   const handleChannelSelect = (channelId) => {
     if (
-      (newScheduleItems.length > 0 || deletedIds.length > 0) &&
+      (newScheduleItems.length > 0 || updatedScheduleItems.length > 0 || deletedIds.length > 0) &&
       !window.confirm(
         "Bạn có thay đổi chưa lưu. Tiếp tục sẽ mất các thay đổi này. Bạn có muốn tiếp tục không?"
       )
@@ -112,10 +114,13 @@ function Schedule() {
     }
     setSelectedChannel(channelId);
     setHasChanges(false);
-    setNewScheduleItems([]); // Reset danh sách lịch mới khi đổi kênh    setDeletedIds([]); // Reset danh sách ID đã xóa khi đổi kênh
+    setNewScheduleItems([]); // Reset danh sách lịch mới khi đổi kênh
+    setUpdatedScheduleItems([]); // Reset danh sách lịch đã cập nhật khi đổi kênh
+    setDeletedIds([]); // Reset danh sách ID đã xóa khi đổi kênh
     setSelectedVodSchedules(new Set()); // Reset danh sách VOD được chọn
     setVodMapping(new Map()); // Reset mapping VOD
     setExistingVods([]); // Reset danh sách VOD đã có
+    setSelectedSchedulesToDelete(new Set()); // Reset danh sách lịch được chọn để xóa
   };
 
   const formatDateForAPI = (date, isEndOfDay = false) => {
@@ -136,6 +141,7 @@ function Schedule() {
     setSelectedVodSchedules(new Set()); // Reset danh sách VOD được chọn
     setVodMapping(new Map()); // Reset mapping VOD
     setExistingVods([]); // Reset danh sách VOD đã có
+    setSelectedSchedulesToDelete(new Set()); // Reset danh sách lịch được chọn để xóa
 
     try {
       const startTime = formatDateForAPI(date); // 00:00:00
@@ -162,6 +168,7 @@ function Schedule() {
         }
 
         setNewScheduleItems([]); // Reset danh sách lịch mới khi tải lại dữ liệu
+        setUpdatedScheduleItems([]); // Reset danh sách lịch đã cập nhật khi tải lại dữ liệu
         setDeletedIds([]); // Reset danh sách ID đã xóa khi tải lại dữ liệu
         setHasChanges(false);
       } else {
@@ -263,10 +270,10 @@ function Schedule() {
     }
 
     if (isEditing && currentItem) {
-      // Khi chỉnh sửa: xóa item cũ và thêm item mới
+      // Khi chỉnh sửa: thêm vào danh sách cập nhật
       // Thêm ID của item cũ vào danh sách đã xóa (nếu có ID thật từ server)
       if (currentItem.id && !currentItem.isNewItem) {
-        setDeletedIds([...deletedIds, currentItem.id]);
+        setDeletedIds(prev => [...prev, currentItem.id]);
       }
 
       // Xóa item cũ khỏi schedule
@@ -280,14 +287,22 @@ function Schedule() {
         ...data,
         position: 0,
         status: 1,
-        isNewItem: true, // Đánh dấu đây là item mới
+        isNewItem: true, // Đánh dấu đây là item mới (được tạo từ việc cập nhật)
         labels: data.labels || [],
         ads: data.ads || [],
       };
 
-      // Thêm item mới vào schedule và newScheduleItems
+      // Thêm item mới vào schedule
       setSchedule([...updatedSchedule, newItem]);
-      setNewScheduleItems([...newScheduleItems, newItem]);
+
+      // Nếu item gốc là item mới thì thêm vào newScheduleItems, ngược lại thêm vào updatedScheduleItems
+      if (currentItem.isNewItem) {
+        // Item gốc là item mới, cập nhật trong newScheduleItems
+        setNewScheduleItems(prev => prev.filter(item => item.id !== currentItem.id).concat(newItem));
+      } else {
+        // Item gốc từ server, thêm vào danh sách cập nhật
+        setNewScheduleItems(prev => [...prev, newItem]);
+      }
     } else {
       // Create new item locally
       const newItem = {
@@ -315,7 +330,7 @@ function Schedule() {
 
       // Nếu item có ID thật từ server (không phải item mới), thêm vào deletedIds
       if (itemToDelete && !itemToDelete.isNewItem) {
-        setDeletedIds([...deletedIds, itemId]);
+        setDeletedIds(prev => [...prev, itemId]);
       }
 
       // Cập nhật danh sách lịch chung
@@ -327,7 +342,79 @@ function Schedule() {
         (item) => item.id !== itemId
       );
       setNewScheduleItems(updatedNewItems);
+
+      // Cập nhật danh sách lịch đã cập nhật (nếu đó là lịch đã cập nhật)
+      const updatedUpdatedItems = updatedScheduleItems.filter(
+        (item) => item.id !== itemId
+      );
+      setUpdatedScheduleItems(updatedUpdatedItems);
     }
+  };
+
+  // Hàm xử lý chọn/bỏ chọn lịch để xóa
+  const handleScheduleSelectionChange = (scheduleId, isChecked) => {
+    setSelectedSchedulesToDelete(prev => {
+      const newSet = new Set(prev);
+      if (isChecked) {
+        newSet.add(scheduleId);
+      } else {
+        newSet.delete(scheduleId);
+      }
+      return newSet;
+    });
+  };
+
+  // Hàm chọn/bỏ chọn tất cả lịch sắp tới
+  const handleSelectAllUpcoming = (isChecked) => {
+    const upcomingSchedules = schedule.filter(item => 
+      !isItemInPast(item) && !isItemCurrent(item)
+    );
+    
+    if (isChecked) {
+      const upcomingIds = upcomingSchedules.map(item => item.id);
+      setSelectedSchedulesToDelete(new Set(upcomingIds));
+    } else {
+      setSelectedSchedulesToDelete(new Set());
+    }
+  };
+
+  // Hàm xóa các lịch đã chọn
+  const handleDeleteSelectedSchedules = () => {
+    if (selectedSchedulesToDelete.size === 0) {
+      alert("Vui lòng chọn ít nhất một lịch để xóa!");
+      return;
+    }
+
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa ${selectedSchedulesToDelete.size} lịch đã chọn không? Hành động này không thể hoàn tác!`)) {
+      return;
+    }
+
+    // Lọc ra các lịch được chọn để xóa
+    const schedulesToDelete = schedule.filter(item => selectedSchedulesToDelete.has(item.id));
+
+    // Thêm ID của các lịch từ server vào deletedIds
+    const serverScheduleIds = schedulesToDelete
+      .filter(item => !item.isNewItem)
+      .map(item => item.id);
+    
+    setDeletedIds(prev => [...prev, ...serverScheduleIds]);
+
+    // Xóa các lịch đã chọn khỏi schedule
+    const remainingSchedules = schedule.filter(item => !selectedSchedulesToDelete.has(item.id));
+    setSchedule(remainingSchedules);
+
+    // Cập nhật danh sách lịch mới (loại bỏ các lịch mới đã chọn để xóa)
+    const updatedNewItems = newScheduleItems.filter(item => !selectedSchedulesToDelete.has(item.id));
+    setNewScheduleItems(updatedNewItems);
+
+    // Cập nhật danh sách lịch đã cập nhật (loại bỏ các lịch đã cập nhật được chọn để xóa)
+    const updatedUpdatedItems = updatedScheduleItems.filter(item => !selectedSchedulesToDelete.has(item.id));
+    setUpdatedScheduleItems(updatedUpdatedItems);
+
+    // Reset danh sách lịch được chọn
+    setSelectedSchedulesToDelete(new Set());
+
+    alert(`Đã đánh dấu xóa ${schedulesToDelete.length} lịch. Nhấn "Hoàn tất" để lưu thay đổi.`);
   };
   const handleComplete = async () => {
     if (!window.confirm("Bạn có chắc chắn muốn lưu tất cả thay đổi không?")) {
@@ -336,7 +423,7 @@ function Schedule() {
     setLoading(true);
     setError(null);
     try {
-      // Chỉ gửi những lịch mới được thêm vào (bao gồm cả lịch chỉnh sửa được coi như lịch mới)
+      // Chỉ gửi những lịch mới được thêm vào (không bao gồm lịch không thay đổi)
       const itemsToSync = newScheduleItems.filter(
         (item) => !isItemInPast(item)
       );
@@ -373,8 +460,9 @@ function Schedule() {
       });
       if (result.data.code === 200) {
         alert("Lưu lịch phát sóng thành công!");
-        // Reset danh sách lịch mới và deletedIds sau khi lưu thành công
+        // Reset tất cả danh sách theo dõi thay đổi sau khi lưu thành công
         setNewScheduleItems([]);
+        setUpdatedScheduleItems([]);
         setDeletedIds([]);
         // Refresh schedule from server
         fetchScheduleForChannel(selectedChannel, selectedDate);
@@ -474,7 +562,7 @@ function Schedule() {
   const isItemCurrent = checkItemIsCurrent;
   const handleDateChange = (date) => {
     if (
-      (newScheduleItems.length > 0 || deletedIds.length > 0) &&
+      (newScheduleItems.length > 0 || updatedScheduleItems.length > 0 || deletedIds.length > 0) &&
       !window.confirm(
         "Bạn có thay đổi chưa lưu. Tiếp tục sẽ mất các thay đổi này. Bạn có muốn tiếp tục không?"
       )
@@ -483,10 +571,13 @@ function Schedule() {
     }
     setSelectedDate(date);
     setHasChanges(false);
-    setNewScheduleItems([]); // Reset danh sách lịch mới khi đổi ngày    setDeletedIds([]); // Reset danh sách ID đã xóa khi đổi ngày
+    setNewScheduleItems([]); // Reset danh sách lịch mới khi đổi ngày
+    setUpdatedScheduleItems([]); // Reset danh sách lịch đã cập nhật khi đổi ngày
+    setDeletedIds([]); // Reset danh sách ID đã xóa khi đổi ngày
     setSelectedVodSchedules(new Set()); // Reset danh sách VOD được chọn
     setVodMapping(new Map()); // Reset mapping VOD
     setExistingVods([]); // Reset danh sách VOD đã có
+    setSelectedSchedulesToDelete(new Set()); // Reset danh sách lịch được chọn để xóa
   };
 
   // Hàm lấy danh sách VOD đã có từ server
@@ -654,12 +745,25 @@ function Schedule() {
                   Thêm mới
                 </button>
                 <button
+                  onClick={handleDeleteSelectedSchedules}
+                  disabled={selectedSchedulesToDelete.size === 0}
+                  className={`flex items-center px-4 py-2 ${
+                    selectedSchedulesToDelete.size > 0
+                      ? "bg-red-600 hover:bg-red-700"
+                      : "bg-gray-600 cursor-not-allowed"
+                  } text-white rounded transition`}
+                  title="Xóa các lịch đã chọn"
+                >
+                  <FaTrashAlt className="mr-2" />
+                  Xóa các lịch đã chọn ({selectedSchedulesToDelete.size})
+                </button>
+                <button
                   onClick={handleComplete}
                   disabled={
-                    (!newScheduleItems.length && !deletedIds.length) || loading
+                    (!newScheduleItems.length && !updatedScheduleItems.length && !deletedIds.length) || loading
                   }
                   className={`flex items-center px-4 py-2 ${
-                    (newScheduleItems.length || deletedIds.length) && !loading
+                    (newScheduleItems.length || updatedScheduleItems.length || deletedIds.length) && !loading
                       ? "bg-indigo-600 hover:bg-indigo-700"
                       : "bg-gray-600 cursor-not-allowed"
                   } text-white rounded transition`}
@@ -675,6 +779,19 @@ function Schedule() {
             <table className="min-w-full bg-gray-700 rounded-lg overflow-hidden">
               <thead>
                 <tr className="bg-gray-600">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-200 uppercase tracking-wider">
+                    <input
+                      type="checkbox"
+                      checked={
+                        schedule.filter(item => !isItemInPast(item) && !isItemCurrent(item)).length > 0 &&
+                        schedule.filter(item => !isItemInPast(item) && !isItemCurrent(item))
+                          .every(item => selectedSchedulesToDelete.has(item.id))
+                      }
+                      onChange={(e) => handleSelectAllUpcoming(e.target.checked)}
+                      className="w-4 h-4 text-indigo-600 bg-gray-700 border-gray-600 rounded focus:ring-indigo-500 focus:ring-2"
+                      title="Chọn tất cả lịch sắp tới"
+                    />
+                  </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-200 uppercase tracking-wider">
                     <div className="flex items-center">
                       <FaClock className="mr-2" />
@@ -683,7 +800,7 @@ function Schedule() {
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-200 uppercase tracking-wider">
                     Chương trình
-                  </th>{" "}
+                  </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-200 uppercase tracking-wider">
                     Nguồn nội dung
                   </th>
@@ -700,7 +817,7 @@ function Schedule() {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan="5"
+                      colSpan="6"
                       className="px-6 py-4 text-center text-gray-300"
                     >
                       <div className="flex justify-center items-center">
@@ -752,6 +869,19 @@ function Schedule() {
                             transition
                           `}
                         >
+                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                            {!isPast && !isCurrent ? (
+                              <input
+                                type="checkbox"
+                                checked={selectedSchedulesToDelete.has(item.id)}
+                                onChange={(e) => handleScheduleSelectionChange(item.id, e.target.checked)}
+                                className="w-4 h-4 text-indigo-600 bg-gray-700 border-gray-600 rounded focus:ring-indigo-500 focus:ring-2"
+                                title="Chọn lịch này để xóa"
+                              />
+                            ) : (
+                              <span className="text-gray-500">-</span>
+                            )}
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
                             <div>
                               {dayjs(item.startTime).format("HH:mm:ss")} -{" "}
@@ -886,7 +1016,7 @@ function Schedule() {
                 ) : (
                   <tr>
                     <td
-                      colSpan="5"
+                      colSpan="6"
                       className="px-6 py-4 text-center text-gray-300"
                     >
                       Không có dữ liệu lịch phát sóng
@@ -896,10 +1026,17 @@ function Schedule() {
               </tbody>
             </table>
           </div>{" "}
-          {(newScheduleItems.length > 0 || deletedIds.length > 0) && (
+          {(newScheduleItems.length > 0 || updatedScheduleItems.length > 0 || deletedIds.length > 0) && (
             <div className="mt-4 p-3 bg-amber-800 bg-opacity-50 text-amber-100 rounded-lg">
               Lưu ý: Bạn có thay đổi chưa được lưu. Nhấn "Hoàn tất" để lưu thay
               đổi.
+              {(newScheduleItems.length > 0 || updatedScheduleItems.length > 0 || deletedIds.length > 0) && (
+                <div className="mt-2 text-sm">
+                  {newScheduleItems.length > 0 && <div>• Lịch mới: {newScheduleItems.length}</div>}
+                  {updatedScheduleItems.length > 0 && <div>• Lịch đã cập nhật: {updatedScheduleItems.length}</div>}
+                  {deletedIds.length > 0 && <div>• Lịch đã xóa: {deletedIds.length}</div>}
+                </div>
+              )}
             </div>
           )}
           {/* Hiển thị thông báo lỗi nếu có */}
