@@ -251,6 +251,9 @@ function Schedule() {
     if (item.videoId) {
       // Nội dung từ kho
       formData.videoId = item.videoId;
+    } else if (item.sourceLive) {
+      // Nội dung trực tiếp
+      formData.sourceLive = item.sourceLive;
     } else {
       // Nội dung từ URL
       formData.videoPath = item.video || item.videoPath || "";
@@ -438,9 +441,11 @@ function Schedule() {
           ads: item.ads || [], // Thêm danh sách quảng cáo
         };
 
-        // Xử lý video/videoId
+        // Xử lý video/videoId/sourceLive
         if (item.videoId) {
           scheduleItem.videoId = item.videoId;
+        } else if (item.sourceLive) {
+          scheduleItem.sourceLive = item.sourceLive;
         } else {
           scheduleItem.video = item.video || item.videoPath || "";
         }
@@ -902,6 +907,10 @@ function Schedule() {
                             {item.videoId ? (
                               <span className="px-2 py-1 bg-green-900 bg-opacity-50 text-green-300 rounded">
                                 ID: {item.videoId}
+                              </span>
+                            ) : item.sourceLive ? (
+                              <span className="px-2 py-1 bg-red-900 bg-opacity-50 text-red-300 rounded">
+                                LIVE: {item.sourceLive}
                               </span>
                             ) : item.video || item.videoPath ? (
                               <span className="text-gray-300">
