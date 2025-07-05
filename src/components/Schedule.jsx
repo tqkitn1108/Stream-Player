@@ -508,7 +508,7 @@ function Schedule() {
     }
   };
   // Hàm xử lý dừng lịch hiện tại
-  const handleStopCurrent = async (playAds) => {
+  const handleStopCurrent = async () => {
     if (!currentPlayingItem) return;
 
     setLoading(true);
@@ -517,18 +517,15 @@ function Schedule() {
       console.log("Stopping current schedule:", {
         channelId: selectedChannel,
         scheduleId: currentPlayingItem.id,
-        playAds: playAds,
       });
       const result = await axios.post(`${API_BASE_URL}/schedule/stop-current`, {
         channelId: selectedChannel,
         scheduleId: currentPlayingItem.id,
-        playAds: playAds,
       });
 
       if (result.data.code === 200) {
-        const replacementText = playAds ? "quảng cáo" : "nội dung mặc định";
         alert(
-          `Đã dừng chương trình "${currentPlayingItem.title}" và chuyển sang phát ${replacementText}!`
+          `Đã dừng chương trình "${currentPlayingItem.title}"!`
         );
 
         // Reset state

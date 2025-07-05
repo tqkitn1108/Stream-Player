@@ -1,12 +1,10 @@
-import React, { useState } from "react";
-import { FaTimes, FaStop, FaAd, FaPlay } from "react-icons/fa";
+import React from "react";
+import { FaTimes, FaStop } from "react-icons/fa";
 import dayjs from "dayjs";
 
 function StopCurrentModal({ isOpen, onClose, onConfirm, currentItem, loading }) {
-  const [playAds, setPlayAds] = useState(true); // Mặc định chọn phát quảng cáo
-
   const handleConfirm = () => {
-    onConfirm(playAds);
+    onConfirm();
   };
 
   if (!isOpen) return null;
@@ -32,49 +30,11 @@ function StopCurrentModal({ isOpen, onClose, onConfirm, currentItem, loading }) 
             <p className="text-gray-400 text-sm">
               {dayjs(currentItem.startTime).format("HH:mm:ss")} - {dayjs(currentItem.endTime).format("HH:mm:ss")}
             </p>
-            <div className="mt-2 text-xs text-red-400 bg-red-900 bg-opacity-30 px-2 py-1 rounded">
-              ⚠️ Hành động này sẽ dừng ngay lập tức chương trình đang phát
+            <div className="mt-3 text-sm text-red-400 bg-red-900 bg-opacity-30 px-3 py-2 rounded">
+              ⚠️ Bạn có chắc chắn muốn dừng chương trình này không? Hành động này không thể hoàn tác.
             </div>
           </div>
-        )}
-
-        <div className="mb-6">
-          <h3 className="text-white font-medium mb-4">Chọn nội dung thay thế:</h3>
-          
-          <div className="space-y-3">
-            <label className="flex items-center p-3 bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-600 transition">
-              <input
-                type="radio"
-                name="replacement"
-                value="ads"
-                checked={playAds === true}
-                onChange={() => setPlayAds(true)}
-                className="mr-3 text-indigo-600"
-              />
-              <FaAd className="mr-2 text-yellow-500" />
-              <div>
-                <div className="text-white font-medium">Phát quảng cáo</div>
-                <div className="text-gray-400 text-sm">Chuyển sang phát các quảng cáo đã cài đặt</div>
-              </div>
-            </label>
-
-            <label className="flex items-center p-3 bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-600 transition">
-              <input
-                type="radio"
-                name="replacement"
-                value="default"
-                checked={playAds === false}
-                onChange={() => setPlayAds(false)}
-                className="mr-3 text-indigo-600"
-              />
-              <FaPlay className="mr-2 text-blue-500" />
-              <div>
-                <div className="text-white font-medium">Nội dung mặc định</div>
-                <div className="text-gray-400 text-sm">Chuyển sang phát nội dung mặc định của kênh</div>
-              </div>
-            </label>
-          </div>
-        </div>        <div className="flex space-x-3">
+        )}        <div className="flex space-x-3">
           <button
             onClick={onClose}
             disabled={loading}
